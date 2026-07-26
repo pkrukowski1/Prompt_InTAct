@@ -33,15 +33,15 @@ class ImageNet_CR(Dataset):
         self.target_transform = target_transform
 
         self.mode = mode
-        self.data_root_c = "/data/dataset/liuzichen/imagenet-c"
-        self.image_list_root_c = "datasets/image_list/imagenet-c_list"
+        self.data_root_c = "/shared/sets/datasets/imagenet-c"
+        self.image_list_root_c = "./datasets/image_list/imagenet-c_list"
         self.task_name_c = ['defocus_blur', 'glass_blur', 'motion_blur', 'zoom_blur',
                             'contrast', 'elastic_transform', 'jpeg_compression', 'pixelate',
                             'spatter', 'speckle_noise',
                             'gaussian_noise', 'shot_noise',
                             'fog', 'frost', 'snow']
-        self.data_root_r = "/data/dataset/liuzichen/imagenet-r"
-        self.image_list_root_r = "datasets/image_list/imagenet-r_list"
+        self.data_root_r = "/shared/sets/datasets/imagenet-r_InTAct/imagenet-r"
+        self.image_list_root_r = "./datasets/image_list/imagenet-r_list"
         self.task_name_r = ['art', 'cartoon', 'deviantart', 'graffiti', 'embroidery',
                         'graphic', 'origami', 'painting', 'misc',
                         'sticker', 'sculpture', 'sketch', 'tattoo', 'toy',
@@ -99,16 +99,16 @@ class ImageNet_CR_ALL(Dataset):
             transforms.ToTensor()]
             )
         self.mode = mode
-        self.data_root_c = "/data/dataset/liuzichen/imagenet-c"
-        self.image_list_root_c = "datasets/image_list/imagenet-c_list"
+        self.data_root_c = "/shared/sets/datasets/imagenet-c"
+        self.image_list_root_c = "./datasets/image_list/imagenet-c_list"
         self.task_name_c = ['defocus_blur', 'glass_blur', 'motion_blur', 'zoom_blur',
                             'contrast', 'elastic_transform', 'jpeg_compression', 'pixelate',
                             'spatter', 'speckle_noise',
                             'gaussian_noise', 'shot_noise',
                             'fog', 'frost', 'snow']
 
-        self.data_root_r = "/data/dataset/liuzichen/imagenet-r"
-        self.image_list_root_r = "datasets/image_list/imagenet-r_list"
+        self.data_root_r = "/shared/sets/datasets/imagenet-r_InTAct/imagenet-r"
+        self.image_list_root_r = "./datasets/image_list/imagenet-r_list"
         self.task_name_r = ['art', 'cartoon', 'deviantart', 'graffiti', 'embroidery',
                         'graphic', 'origami', 'painting', 'misc',
                         'sticker', 'sculpture', 'sketch', 'tattoo', 'toy',
