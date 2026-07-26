@@ -1,35 +1,23 @@
 #!/bin/bash
-#SBATCH --job-name=CODA-P_domainnet_dil_patryk
-#SBATCH --qos=big
+#SBATCH --job-name=KA_DomainNet_patryk
+#SBATCH --qos=normal
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=64G
 #SBATCH --partition=dgxh100
 #SBATCH --array=0-11
 
-source activate prompt_intact
+eval "$(conda shell.bash hook)"
+conda activate DIL
 
 SCRIPT_DIR=$(dirname "$0")
 source ${SCRIPT_DIR}/grid_config.sh
 
-# experiment settings
-DATASET=DomainNet
-N_CLASS=345
-
-# save directory
-OUTDIR=./${DATASET}/6-task
-
-# hard coded inputs
-GPUID='0'
-CONFIG=configs/domainnet_prompt_dil.yaml
-REPEAT=1
-OVERWRITE=1
-
-###############################################################
+OUTDIR=/shared/results/common/helm/KA-Prompt-InTAct/DomainNet/M/
+EPOCHS=10
 
 FEATURE_LOSS_SCALE=${FEATURE_LOSS_SCALES[0]}
 
-# Create combined array of all combinations
 COMBINATIONS=()
 for var in "${VAR_LOSS_SCALES[@]}"; do
   for out in "${INTERNAL_REPRESENTATION_DRIFT_REG_SCALES[@]}"; do
@@ -37,18 +25,36 @@ for var in "${VAR_LOSS_SCALES[@]}"; do
   done
 done
 
-# Get current combination from array task
 IFS='_' read -r VAR_LOSS INTERNAL_DRIFT <<< "${COMBINATIONS[$SLURM_ARRAY_TASK_ID]}"
 
-LOGDIR=${OUTDIR}/coda-p/var${VAR_LOSS}_out${INTERNAL_DRIFT}_drift${FEATURE_LOSS_SCALE}
-mkdir -p $LOGDIR
+echo "Task ${SLURM_ARRAY_TASK_ID}: var=${VAR_LOSS} drift=${INTERNAL_DRIFT} feat=${FEATURE_LOSS_SCALE}"
 
-python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-  --learner_type prompt --learner_name CODAPrompt \
-  --prompt_param 100 8 0.0 \
-  --use_interval_activation \
-  --log_dir $LOGDIR \
-  --var_loss_scale $VAR_LOSS \
-  --internal_repr_drift_loss_scale $INTERNAL_DRIFT \
-  --feature_loss_scale $FEATURE_LOSS_SCALE \
-  --use_align_loss
+CUDA_VISIBLE_DEVICES=0 python main.py \
+    --info=var${VAR_LOSS}_out${INTERNAL_DRIFT}_drift${FEATURE_LOSS_SCALE} \
+    --dataset=domain-net \
+    --pool_size=150 \
+    --prompt_num=8 \
+    --topN=3 \
+    --prompt_comp \
+    --prompt_per_task=25 \
+    --use_prompt_penalty_3 \
+    --output_path=${OUTDIR} \
+    --fuse_prompt \
+    --use_ema_c \
+    --adapt_ema_c \
+    --adapt_h=10 \
+    --lr=0.0006 \
+    --resize_test=224 \
+    --resize_train=224 \
+    --greedy_init \
+    --tau 0.01 \
+    --aux_weight 0.1 \
+    --seed=0 \
+    --query_pos -1 \
+    --n_epochs=${EPOCHS} \
+    --use_interval_activation \
+    --var_loss_scale ${VAR_LOSS} \
+    --internal_repr_drift_loss_scale ${INTERNAL_DRIFT} \
+    --feature_loss_scale ${FEATURE_LOSS_SCALE} \
+    --use_align_loss \
+    --use_intact_metrics
