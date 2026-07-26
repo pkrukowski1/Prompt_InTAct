@@ -10,8 +10,9 @@
 eval "$(conda shell.bash hook)"
 conda activate DIL
 
-SCRIPT_DIR=$(dirname "$0")
-source ${SCRIPT_DIR}/grid_config.sh
+VAR_LOSS_SCALES=("0.001" "0.01" "0.1" "1.0")
+INTERNAL_REPRESENTATION_DRIFT_REG_SCALES=("0.0001" "0.001" "0.1")
+FEATURE_LOSS_SCALES=("0.0001" "0.001" "0.1")
 
 DATASET=imagenet-r
 DATASET_DIR=ImageNet-R
