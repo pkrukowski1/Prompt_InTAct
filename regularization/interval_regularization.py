@@ -225,7 +225,7 @@ class IntervalPenalization(nn.Module):
             for p in self.old_classifier_head.parameters():
                 p.requires_grad = False
 
-for idx, layer in enumerate(self.curr_classifier_head):
+            for idx, layer in enumerate(self.curr_classifier_head):
                 if isinstance(layer, IntervalActivation):
                     self._snapshot_layer(task_id - 1, idx, layer)
                     layer.reset_range()

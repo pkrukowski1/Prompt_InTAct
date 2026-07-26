@@ -9,7 +9,7 @@
 eval "$(conda shell.bash hook)"
 conda activate DIL
 
-method=InTAct_KA-Prompt/
+OUTDIR=output/InTAct_KA-Prompt/DomainNet/
 
 # InTAct hyperparameters (from CODA-Prompt reference on DomainNet)
 VAR_LOSS_SCALE=1.0
@@ -21,7 +21,7 @@ for seed in 0 42 3407; do
 
     CUDA_VISIBLE_DEVICES=0 python main.py --info=seed-${seed} --dataset=domain-net \
     --pool_size=150 --prompt_num=8 --topN=3 --prompt_comp --prompt_per_task=25 --use_prompt_penalty_3 \
-    --fuse_prompt --use_ema_c --output_path=output/${method}/DomainNet/ --adapt_ema_c --adapt_h=10 --lr=0.0006 \
+    --fuse_prompt --use_ema_c --output_path=${OUTDIR} --adapt_ema_c --adapt_h=10 --lr=0.0006 \
     --resize_test=224 --resize_train=224 --greedy_init --tau 0.01 --aux_weight 0.1 --seed=${seed} --n_epochs 10 \
     --query_pos -1 \
     --use_interval_activation \
@@ -31,4 +31,4 @@ for seed in 0 42 3407; do
     --use_align_loss
 done
 
-python cal_mean_std_af.py output/${method}/DomainNet/
+python cal_mean_std_af.py ${OUTDIR}

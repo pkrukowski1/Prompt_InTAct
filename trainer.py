@@ -7,6 +7,7 @@ from utils.loggers import *
 from utils.loggers import CsvLogger
 from argparse import Namespace
 from models.utils.continual_model import ContinualModel
+from models.layers.interval_activation import IntervalActivation
 from datasets.utils.continual_dataset import ContinualDataset
 from typing import Tuple
 from datasets import get_dataset

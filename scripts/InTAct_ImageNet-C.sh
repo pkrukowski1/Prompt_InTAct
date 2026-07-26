@@ -9,7 +9,7 @@
 eval "$(conda shell.bash hook)"
 conda activate DIL
 
-method=InTAct_KA-Prompt/
+OUTDIR=output/InTAct_KA-Prompt/ImageNet-C/
 epochs=5
 
 # InTAct hyperparameters (using ImageNet-R reference values as starting point)
@@ -22,7 +22,7 @@ for seed in 3407 0 42; do
 
     CUDA_VISIBLE_DEVICES=0 python main.py --info=seed-${seed} --dataset=imagenet-c \
     --pool_size=15 --prompt_num=20 --topN=1 --prompt_comp --prompt_per_task=1 --use_prompt_penalty_3 \
-    --output_path=output/${method}/ImageNet-C/ --fuse_prompt --use_ema_c --adapt_ema_c --adapt_h=6.5 --lr=0.004 \
+    --output_path=${OUTDIR} --fuse_prompt --use_ema_c --adapt_ema_c --adapt_h=6.5 --lr=0.004 \
     --resize_test=230 --resize_train=230 --greedy_init --tau 0.01 --aux_weight 1.0 --seed=${seed} \
     --query_pos -1 --n_epochs=${epochs} \
     --use_interval_activation \
@@ -32,4 +32,4 @@ for seed in 3407 0 42; do
     --use_align_loss
 done
 
-python cal_mean_std_af.py output/${method}/ImageNet-C/
+python cal_mean_std_af.py ${OUTDIR}
