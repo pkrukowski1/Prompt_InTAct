@@ -35,7 +35,7 @@ class ImageNet_C(Dataset):
         self.target_transform = target_transform
 
         self.mode = mode
-        self.data_root = "/data/dataset/liuzichen/imagenet-c"
+        self.data_root = "/shared/sets/datasets/imagenet-c"
         self.image_list_root = "datasets/image_list/imagenet-c_list"
         self.task_name = ['defocus_blur', 'glass_blur', 'motion_blur', 'zoom_blur',
                             'contrast', 'elastic_transform', 'jpeg_compression', 'pixelate',
@@ -89,7 +89,7 @@ class ImageNet_C_ALL(Dataset):
             transforms.ToTensor()]
             )
         self.mode = mode
-        self.data_root = "/data/dataset/liuzichen/imagenet-c"
+        self.data_root = "/shared/sets/datasets/imagenet-c"
         self.image_list_root = "datasets/image_list/imagenet-c_list"
         self.task_name = ['defocus_blur', 'glass_blur', 'motion_blur', 'zoom_blur',
                             'contrast', 'elastic_transform', 'jpeg_compression', 'pixelate',
@@ -236,12 +236,12 @@ class SequentialImageNet_C(ContinualDataset):
     @staticmethod
     def get_backbone():
         model = create_model(
-            "vit_base_patch16_224.augreg_in21k",
-            pretrained=False,
-            num_classes=21843,
-            drop_block_rate=None,
-        )
-        weight_path = 'models/vit_base_p16_224_in22k.pth'
+                    "vit_base_patch16_224.augreg_in21k",
+                    pretrained=False,
+                    num_classes=21843,
+                    drop_block_rate=None,
+                )
+        weight_path = "/shared/results/common/krukowski/intact/ViT/vit_base_p16_224_in22k.pth"
         model.load_state_dict(torch.load(weight_path, weights_only=True), False)
         model.head = torch.nn.Linear(768,SequentialImageNet_C.N_CLASSES)
         return model
