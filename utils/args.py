@@ -177,3 +177,5 @@ def add_management_args(parser: ArgumentParser) -> None:
                         help='Scale for interval drift regularization loss')
     parser.add_argument('--no_use_align_loss', dest='use_align_loss', action='store_false',
                         help='Disable activation center alignment loss (enabled by default)')
+    parser.add_argument('--use_intact_metrics', action='store_true', default=False,
+                        help='Track and print InTAct hypercube volume ratio and constraint activation metrics')

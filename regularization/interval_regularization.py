@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import numpy as np
 
 from models.layers.interval_activation import IntervalActivation
 
@@ -15,13 +16,25 @@ class IntervalPenalization(nn.Module):
         - Drift in internal representations between tasks.
         - Feature-level drift (using externally-provided old features).
         - Misalignment of new representations relative to previous interval bounds.
+
+    Attributes:
+        task_id (int | None): Current task index.
+        var_loss_scale (float): Scale factor for variance regularization loss.
+        internal_repr_drift_loss_scale (float): Scale factor for output / weight drift loss.
+        feature_loss_scale (float): Scale factor for internal representation drift loss.
+        use_align_loss (bool): Whether to apply center-alignment loss for activations.
+        use_metrics (bool): If True, track hypercube volume ratio, occupancy rate, constraint activation rate.
+        params_buffer (dict): Stores cloned parameters from previous task for regularization.
+        curr_classifier_head (nn.Sequential | None): Current task classifier head.
+        old_classifier_head (nn.Sequential | None): Classifier head from previous task (frozen).
     """
 
     def __init__(self,
             var_loss_scale: float = 0.01,
             internal_repr_drift_loss_scale: float = 1.0,
             feature_loss_scale: float = 1.0,
-            use_align_loss: bool = True
+            use_align_loss: bool = True,
+            use_metrics: bool = False
         ) -> None:
         super().__init__()
         self.task_id = None
@@ -30,17 +43,161 @@ class IntervalPenalization(nn.Module):
         self.internal_repr_drift_loss_scale = internal_repr_drift_loss_scale
         self.feature_loss_scale = feature_loss_scale
         self.use_align_loss = use_align_loss
+        self.use_metrics = use_metrics
 
         self.params_buffer = {}
 
         self.curr_classifier_head = None
         self.old_classifier_head = None
 
+        # --- metrics tracking state (updated each task) ---
+        self._task_box_history = []
+        self._task_cur_min = []
+        self._task_cur_max = []
+        self._violation_sum = 0.0
+        self._sample_sum = 0.0
+        self._n_interval_layers = 0
+
+        self.cumulative_box_history = []
+
     def detach_interval_last_batches(self, curr_classifier_head: nn.Sequential) -> None:
         layers = list(curr_classifier_head.children())
         for layer in layers:
             if isinstance(layer, IntervalActivation):
                 layer.curr_task_last_batch = None
+
+    # ---- helpers (metrics) ----
+
+    def _get_task_bounds(self, layer: IntervalActivation):
+        """Compute per-task (min, max) from test_act_buffer, always on CPU."""
+        if len(layer.test_act_buffer) == 0:
+            return None, None
+        activations = torch.cat(layer.test_act_buffer, dim=0)
+        n = activations.size(0)
+        if n == 0:
+            return None, None
+        sorted_buf, _ = torch.sort(activations, dim=0)
+        l_idx = int(np.clip(int(n * layer.lower_percentile), 0, n - 1))
+        u_idx = int(np.clip(int(n * layer.upper_percentile), 0, n - 1))
+        return sorted_buf[l_idx].clone(), sorted_buf[u_idx].clone()
+
+    def _snapshot_layer(self, task_id: int, layer_idx: int, layer: IntervalActivation) -> None:
+        if not self.use_metrics or task_id < 0:
+            return
+        tmin, tmax = self._get_task_bounds(layer)
+        while len(self._task_box_history) <= task_id:
+            self._task_box_history.append([])
+        boxes = self._task_box_history[task_id]
+        while len(boxes) <= layer_idx:
+            boxes.append(None)
+        boxes[layer_idx] = (tmin, tmax)
+
+    def _snapshot_cumulative_bounds(self, task_id: int, layer_idx: int, layer: IntervalActivation) -> None:
+        if not self.use_metrics:
+            return
+        while len(self.cumulative_box_history) <= task_id:
+            self.cumulative_box_history.append([])
+        boxes = self.cumulative_box_history[task_id]
+        while len(boxes) <= layer_idx:
+            boxes.append(None)
+        if layer.min is not None and layer.max is not None:
+            boxes[layer_idx] = (layer.min.clone(), layer.max.clone())
+
+    def _current_cumulative_bounds(self):
+        layers = list(self.curr_classifier_head.children())
+        result = []
+        for layer in layers:
+            if isinstance(layer, IntervalActivation):
+                tmin, tmax = self._get_task_bounds(layer)
+                if tmin is not None and tmax is not None:
+                    if layer.min is not None and layer.max is not None:
+                        tmin = torch.minimum(layer.min.cpu(), tmin)
+                        tmax = torch.maximum(layer.max.cpu(), tmax)
+                    elif layer.min is not None and layer.max is not None:
+                        tmin, tmax = layer.min.cpu().clone(), layer.max.cpu().clone()
+                result.append((tmin, tmax))
+        return result
+
+    def _track_metrics(self, acts: torch.Tensor, layer_idx: int, lb, ub) -> None:
+        if not self.use_metrics:
+            return
+        with torch.no_grad():
+            bmin = acts.min(dim=0).values.cpu()
+            bmax = acts.max(dim=0).values.cpu()
+            if self._task_cur_min[layer_idx] is None:
+                self._task_cur_min[layer_idx] = bmin
+                self._task_cur_max[layer_idx] = bmax
+            else:
+                self._task_cur_min[layer_idx] = torch.minimum(self._task_cur_min[layer_idx], bmin)
+                self._task_cur_max[layer_idx] = torch.maximum(self._task_cur_max[layer_idx], bmax)
+            if lb is not None and ub is not None:
+                violated = ((acts < lb) | (acts > ub)).sum().item()
+                self._violation_sum += violated
+                self._sample_sum += acts.numel()
+
+    # ---- public API ----
+
+    def compute_metrics(self) -> dict:
+        """Compute hypercube volume ratio (occupancy rate) and constraint activation rate."""
+        result = {}
+        if not self.use_metrics:
+            return result
+        
+        layers = list(self.curr_classifier_head.children())
+        cum_boxes = []
+        for l in layers:
+            if isinstance(l, IntervalActivation):
+                if l.min is not None and l.max is not None:
+                    cum_boxes.append((l.min.clone(), l.max.clone()))
+        if not cum_boxes:
+            return result
+        
+        eps = 1e-10
+        cum_log_vols = []
+        for cm, cM in cum_boxes:
+            cum_log_vols.append(torch.sum(torch.log((cM - cm).clamp(min=eps))).item())
+        
+        # per-task volume ratio (current task activations / cumulative hypercube)
+        for layer_idx in range(len(cum_boxes)):
+            log_V_i_list = []
+            for task_idx, task_boxes in enumerate(self._task_box_history):
+                if len(task_boxes) <= layer_idx:
+                    continue
+                box = task_boxes[layer_idx]
+                if box is None or box[0] is None:
+                    continue
+                tmin, tmax = box
+                log_V_i = torch.sum(torch.log((tmax - tmin).clamp(min=eps))).item()
+                log_ratio_i = log_V_i - cum_log_vols[layer_idx]
+                V_ratio_i = float(np.exp(log_ratio_i))
+                result[f"V_ratio_task{task_idx}_layer{layer_idx}"] = V_ratio_i
+                result[f"log_ratio_task{task_idx}_layer{layer_idx}"] = log_ratio_i
+                log_V_i_list.append(log_V_i)
+            # union volume via log-sum-exp (upper bound on combined task volume)
+            if log_V_i_list:
+                log_total_volume = float(
+                    torch.logsumexp(torch.tensor(log_V_i_list, dtype=torch.float64), dim=0).item()
+                )
+                V_log_ratio = log_total_volume - cum_log_vols[layer_idx]
+                V_ratio = float(np.exp(V_log_ratio))
+                result[f"V_ratio_sum_layer{layer_idx}"] = V_ratio
+                result[f"V_log_ratio_sum_layer{layer_idx}"] = V_log_ratio
+        
+        # constraint activation rate  (fraction of elems outside cumulative box)
+        c_rate = self._violation_sum / max(self._sample_sum, 1)
+        result["C_rate"] = c_rate
+        return result
+
+    def finalize_metrics(self) -> dict:
+        """Snapshot the last task boxes and return metrics. Call after training loop completes."""
+        if not self.use_metrics:
+            return {}
+        layers = list(self.curr_classifier_head.children())
+        for idx, layer in enumerate(layers):
+            if isinstance(layer, IntervalActivation):
+                self._snapshot_layer(self.task_id, idx, layer)
+                self._snapshot_cumulative_bounds(self.task_id, idx, layer)
+        return self.compute_metrics()
 
     def setup_task(
         self,
@@ -52,6 +209,7 @@ class IntervalPenalization(nn.Module):
 
         Clones previous task parameters, freezes them, and resets
         interval activation bounds for the current classifier head.
+        Also snapshots per-task bounding box when metrics are enabled.
         """
         self.task_id = task_id
         self.curr_classifier_head = curr_classifier_head
@@ -67,14 +225,25 @@ class IntervalPenalization(nn.Module):
             for p in self.old_classifier_head.parameters():
                 p.requires_grad = False
 
-            for idx, layer in enumerate(self.curr_classifier_head):
+for idx, layer in enumerate(self.curr_classifier_head):
                 if isinstance(layer, IntervalActivation):
+                    self._snapshot_layer(task_id - 1, idx, layer)
                     layer.reset_range()
+                    self._snapshot_cumulative_bounds(task_id - 1, idx, layer)
                     if layer.min is not None and layer.max is not None:
                         print(
-                            f"Volume of the cumulative hypercube for {idx+1}-th layer "
-                            f"in classification head: {torch.mean(layer.max - layer.min).item()}"
+                            f"[InTAct] Volume of the cumulative hypercube for {idx+1}-th layer "
+                            f"in classification head (after reset for task {task_id}): "
+                            f"{torch.mean(layer.max - layer.min).item()}"
                         )
+
+        # per-task tracking re-init
+        layers = list(self.curr_classifier_head.children())
+        self._n_interval_layers = sum(1 for l in layers if isinstance(l, IntervalActivation))
+        self._task_cur_min = [None] * self._n_interval_layers
+        self._task_cur_max = [None] * self._n_interval_layers
+        self._violation_sum = 0.0
+        self._sample_sum = 0.0
 
     def forward(self, x: torch.Tensor, loss: torch.Tensor, old_features: torch.Tensor = None) -> torch.Tensor:
         """
@@ -99,7 +268,7 @@ class IntervalPenalization(nn.Module):
         interval_drift_loss = zero.clone()
         align_repr_loss = zero.clone()
 
-        for idx in interval_act_layers:
+        for layer_i, idx in enumerate(interval_act_layers):
             acts = layers[idx].curr_task_last_batch
             if not isinstance(acts, torch.Tensor):
                 continue
@@ -113,6 +282,9 @@ class IntervalPenalization(nn.Module):
             if self.task_id > 0 and layer_min is not None and layer_max is not None:
                 lb = layer_min.to(x.device)
                 ub = layer_max.to(x.device)
+
+                # track per-task box, constraints violations (lightweight, no-grad)
+                self._track_metrics(acts_flat, layer_i, lb, ub)
 
                 # Interval drift loss at the FIRST IntervalActivation
                 if idx == interval_act_layers[0] and old_features is not None:
@@ -166,11 +338,15 @@ class IntervalPenalization(nn.Module):
 
                     align_repr_loss += center_loss / (prev_radii.mean() + 1e-8)
 
-        loss = (
+        scaled_var = self.var_loss_scale * var_loss
+        scaled_output_reg = self.internal_repr_drift_loss_scale * output_reg_loss
+        scaled_interval_drift = self.feature_loss_scale * interval_drift_loss
+
+        total = (
             loss
-            + self.var_loss_scale * var_loss
-            + self.internal_repr_drift_loss_scale * output_reg_loss
-            + self.feature_loss_scale * interval_drift_loss
+            + scaled_var
+            + scaled_output_reg
+            + scaled_interval_drift
             + align_repr_loss
         )
-        return loss
+        return total

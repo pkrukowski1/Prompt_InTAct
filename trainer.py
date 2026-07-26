@@ -291,6 +291,28 @@ def train_cprompt(model: ContinualModel, dataset: ContinualDataset,
         results.append(accs[0])
         results_mask_classes.append(accs[1])
         
+        # InTAct: log per-task hypercube state after evaluation
+        # (snapshotting is handled inside setup_task / finalize_metrics — we only read here)
+        if hasattr(model, 'interval_penalization') and model.interval_penalization is not None:
+            bl = next((l for l in model.head if isinstance(l, IntervalActivation)), None)
+            if bl is not None and bl.min is not None and bl.max is not None:
+                mean_radius = torch.mean((bl.max - bl.min) / 2.0).item()
+                mean_width = torch.mean(bl.max - bl.min).item()
+                print(f"[InTAct] After task {t}: hypercube_mean_radius={mean_radius:.6f}, "
+                      f"hypercube_mean_width={mean_width:.6f}")
+            if getattr(args, 'use_intact_metrics', False):
+                ip = model.interval_penalization
+                cr = ip._violation_sum / max(ip._sample_sum, 1)
+                print(f"[InTAct] C_rate (fraction outside cumul. box) after task {t}: {cr:.4f}")
+            # snapshot+print per-task vol metrics (call compute_metrics after setup_task's snapshots,
+            # but since finalize_metrics hasn't been called yet, compute from current state)
+            if getattr(args, 'use_intact_metrics', False):
+                metrics = ip.compute_metrics()
+                if metrics:
+                    print("=== InTAct Volume Ratios after task", t, "===")
+                    for k, v in metrics.items():
+                        print(f"  {k}: {v}")
+
         mean_acc = np.mean(accs, axis=1)
         print_mean_accuracy(args, mean_acc, t + 1, dataset.SETTING)
         save_mean_accuracy_to_file(mean_acc, t + 1, dataset.SETTING, args, t, accs, loss)
@@ -303,6 +325,15 @@ def train_cprompt(model: ContinualModel, dataset: ContinualDataset,
         tmp = time.time() - start_time
 
     running_time = time.time() - start_time
+
+    # InTAct: final metrics and coverage table
+    if hasattr(model, 'interval_penalization') and model.interval_penalization is not None and args.use_intact_metrics:
+        final_metrics = model.interval_penalization.finalize_metrics()
+        if final_metrics:
+            print("\n=== InTAct Final Metrics ===")
+            for k, v in final_metrics.items():
+                print(f"  {k}: {v}")
+        model.log_coverage_table(dataset, args)
 
 def visual_features(model: ContinualModel, dataset: ContinualDataset,
           args: Namespace) -> None:

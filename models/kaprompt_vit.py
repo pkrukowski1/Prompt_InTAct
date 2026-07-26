@@ -172,7 +172,8 @@ class KAPROMPTVIT(ContinualModel):
                 var_loss_scale=args.var_loss_scale,
                 internal_repr_drift_loss_scale=args.internal_repr_drift_loss_scale,
                 feature_loss_scale=args.feature_loss_scale,
-                use_align_loss=args.use_align_loss
+                use_align_loss=args.use_align_loss,
+                use_metrics=getattr(args, 'use_intact_metrics', False)
             )
         else:
             self.interval_penalization = None
@@ -785,5 +786,38 @@ class KAPROMPTVIT(ContinualModel):
     def set_g_prompt_not_update(self):
         for i in self.general_prompt:
             i.requires_grad = False
+    
+    def log_coverage_table(self, dataset, args):
+        """For each past task j, collect activations using current model state and
+        print what fraction falls inside the cumulative hypercube."""
+        if self.interval_penalization is None:
+            return
+        layers = list(self.head.children())
+        int_act = next((l for l in layers if isinstance(l, IntervalActivation)), None)
+        if int_act is None or int_act.min is None or int_act.max is None:
+            return
+        
+        was_training = self.net.training
+        self.net.eval()
+        N = dataset.N_TASKS
+        lb = int_act.min.cuda()
+        ub = int_act.max.cuda()
+        print("\n=== InTAct Per-Task Coverage (current model) ===")
+        print(f"Hypercube H covers tasks 0..{N-1}, bounds: min={lb.min().item():.4f} max={ub.max().item():.4f}")
+        for j in range(N):
+            loader_j = dataset.get_data_loaders(task_id=j)
+            inside_cnt, total_cnt = 0.0, 0.0
+            with torch.no_grad():
+                for data in loader_j:
+                    inputs, labels, not_aug = data
+                    inputs = inputs.to(self.device)
+                    _, _, z_clf, _ = self.forward_cprompt(inputs, task_id=j)
+                    acts = self.fc_norm(z_clf)
+                    acts_flat = acts.view(acts.size(0), -1).cpu()
+                    inside_cnt += ((acts_flat >= lb.cpu()) & (acts_flat <= ub.cpu())).float().sum().item()
+                    total_cnt += acts_flat.numel()
+            coverage = inside_cnt / total_cnt if total_cnt > 0 else 0.0
+            print(f"  Task {j}: {coverage*100:.2f}% activations inside cumulative hypercube")
+        self.net.train(was_training)
     
    
