@@ -35,7 +35,7 @@ class ImageNet_C(Dataset):
         self.target_transform = target_transform
 
         self.mode = mode
-        self.data_root = "/data/dataset/liuzichen/imagenet-c"
+        self.data_root = "/shared/sets/datasets/imagenet-c"
         self.image_list_root = "datasets/image_list/imagenet-c_list"
         self.task_name = ['defocus_blur', 'glass_blur', 'motion_blur', 'zoom_blur',
                             'contrast', 'elastic_transform', 'jpeg_compression', 'pixelate',
@@ -89,7 +89,7 @@ class ImageNet_C_ALL(Dataset):
             transforms.ToTensor()]
             )
         self.mode = mode
-        self.data_root = "/data/dataset/liuzichen/imagenet-c"
+        self.data_root = "/shared/sets/datasets/imagenet-c"
         self.image_list_root = "datasets/image_list/imagenet-c_list"
         self.task_name = ['defocus_blur', 'glass_blur', 'motion_blur', 'zoom_blur',
                             'contrast', 'elastic_transform', 'jpeg_compression', 'pixelate',
