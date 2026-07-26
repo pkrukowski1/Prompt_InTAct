@@ -165,6 +165,15 @@ def add_management_args(parser: ArgumentParser) -> None:
     
     parser.add_argument('--e_s', type=int, default=2,help="temperature parameter of mix prompt weight")
     parser.add_argument('--e_e', type=int, default=11,help="temperature parameter of mix prompt weight")
-    
-    
-    
+
+    # InTAct arguments
+    parser.add_argument('--use_interval_activation', action='store_true', default=False,
+                        help='Enable InTAct interval-based regularization')
+    parser.add_argument('--var_loss_scale', type=float, default=0.01,
+                        help='Scale for variance regularization loss')
+    parser.add_argument('--internal_repr_drift_loss_scale', type=float, default=1.0,
+                        help='Scale for output/weight drift regularization loss')
+    parser.add_argument('--feature_loss_scale', type=float, default=1.0,
+                        help='Scale for interval drift regularization loss')
+    parser.add_argument('--no_use_align_loss', dest='use_align_loss', action='store_false',
+                        help='Disable activation center alignment loss (enabled by default)')

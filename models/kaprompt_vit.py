@@ -4,6 +4,8 @@ import torch.nn as nn
 from torch.nn import functional as F
 import transformers
 from models.utils.continual_model import ContinualModel
+from models.layers.interval_activation import IntervalActivation
+from regularization.interval_regularization import IntervalPenalization
 from utils.per_buffer import PERBuffer
 from utils.prompt_pool import PromptPool
 from utils.args import *
@@ -159,12 +161,27 @@ class KAPROMPTVIT(ContinualModel):
         self.fc_norm.requires_grad_(False)
         self.head_drop.requires_grad_(False)
 
-        if args.freeze_clf == 0: 
+        if args.use_interval_activation:
+            original_head = self.net.head
+            self.net.head = nn.Sequential(
+                IntervalActivation(768, use_non_linear_transform=False),
+                original_head
+            )
+            self.head = self.net.head
+            self.interval_penalization = IntervalPenalization(
+                var_loss_scale=args.var_loss_scale,
+                internal_repr_drift_loss_scale=args.internal_repr_drift_loss_scale,
+                feature_loss_scale=args.feature_loss_scale,
+                use_align_loss=args.use_align_loss
+            )
+        else:
+            self.interval_penalization = None
+
+        if args.freeze_clf == 0:
             self.head.requires_grad_(True)
-            #torch.nn.init.zeros_(self.classifier.weight)
-        else:                    
+        else:
             self.head.requires_grad_(False)
-            
+
         self.learning_param = None
 
         self.lr = args.lr
@@ -253,12 +270,15 @@ class KAPROMPTVIT(ContinualModel):
         # print("key_list lenth",len(self.pool.key_list))
         # print("key_list[i] lenth",len(self.pool.key_list[0]))
         # print("key_list[i][j] shape",self.pool.key_list[0][0].shape)
-        
+
         # print("prompt_list lenth",len(self.pool.prompt_list))
         print("prompt_list[i] lenth",len(self.pool.prompt_list[0]))
         print("prompt_list[i][j] shape",self.pool.prompt_list[0][0].shape)
         print("topn",self.topN)
-        
+
+        if self.args.use_interval_activation and self.interval_penalization is not None and task_id >= 0:
+            self.interval_penalization.setup_task(task_id, self.head)
+
         self.old_model=None
                
         if task_id>=0:
@@ -572,20 +592,26 @@ class KAPROMPTVIT(ContinualModel):
         with autocast():
             logits, distance, z_clf, keys  = self.forward_cprompt(inputs,t)
             loss = self.loss(logits, labels) + self.args.pw * torch.mean(torch.sum(distance,dim=1))
-            
-            if t>0 and self.args.aux_weight>0:                
-                
-                # loss=loss+self.loss(logits_old, labels)*0.1
+
+            if t>0 and self.args.aux_weight>0:
                 p_keys_new=torch.stack(self.pool.key_list[0])[keys]
                 logits_old, z_clf_old= self.old_model.forward_vit_old(inputs, t, p_keys_new, keys, self.pool.prompt_list)
-                # logits_old=self.net.forward_head(z_clf_old.unsqueeze(1))
                 loss=loss+self.loss(logits_old, labels)*self.args.aux_weight
+
+            if self.args.use_interval_activation and self.interval_penalization is not None and t > 0:
+                with torch.no_grad():
+                    _, _, old_z_clf, _ = self.old_model.forward_cprompt(inputs, task_id=None)
+                    old_features = self.old_model.fc_norm(old_z_clf).detach()
+                for m in self.old_model.head.modules():
+                    if isinstance(m, IntervalActivation):
+                        m.test_act_buffer = []
+                loss = self.interval_penalization.forward(inputs, loss, old_features=old_features)
+
             self.opt.zero_grad()
             scaler.scale(loss).backward()
             scaler.step(self.opt)
             scaler.update()
-            
-            # self.scheduler.step()
+
         return loss.item()
 
     def cal_g_change(self):
