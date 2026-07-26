@@ -34,8 +34,8 @@ class DomainNet(Dataset):
         self.target_transform = target_transform
 
         self.mode = mode
-        self.data_root = "/data/dataset/liuzichen/domainnet"
-        self.image_list_root = "/data/dataset/liuzichen/domainnet/image_list"
+        self.data_root = "/shared/sets/datasets/DomainNet"
+        self.image_list_root = "./datasets/image_list/domainnet_list"
         self.task_name = ['real','quickdraw','painting','sketch','infograph','clipart']
         self.domain = self.task_name[domain_id]
         self.image_list_path = os.path.join(self.image_list_root, self.domain + "_" + self.mode + ".txt")
@@ -84,8 +84,8 @@ class DomainNetAll(Dataset):
             transforms.ToTensor()]
             )
         self.mode = mode
-        self.data_root = "/data/dataset/liuzichen/domainnet"
-        self.image_list_root = "/data/dataset/liuzichen/domainnet/image_list"
+        self.data_root = "/shared/sets/datasets/DomainNet"
+        self.image_list_root = "./datasets/image_list/domainnet_list"
         self.task_name = ['real','quickdraw','painting','sketch','infograph','clipart']
         self.path = self.get_path()
         self.length = len(self.path)
@@ -235,12 +235,12 @@ class SequentialDomainNet(ContinualDataset):
     @staticmethod
     def get_backbone():
         model = create_model(
-            "vit_base_patch16_224.augreg_in21k",
-            pretrained=False,
-            num_classes=21843,
-            drop_block_rate=None,
-        )
-        weight_path = "models/vit_base_p16_224_in22k.pth"
+                    "vit_base_patch16_224.augreg_in21k",
+                    pretrained=False,
+                    num_classes=21843,
+                    drop_block_rate=None,
+                )
+        weight_path = "/shared/results/common/krukowski/intact/ViT/vit_base_p16_224_in22k.pth"
         model.load_state_dict(torch.load(weight_path, weights_only=True), False)
         model.head = torch.nn.Linear(768,SequentialDomainNet.N_CLASSES)
         return model

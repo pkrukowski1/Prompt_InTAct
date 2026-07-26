@@ -267,12 +267,12 @@ class SequentialImageNet_CR(ContinualDataset):
     @staticmethod
     def get_backbone():
         model = create_model(
-            "vit_base_patch16_224.augreg_in21k",
-            pretrained=False,
-            num_classes=21843,
-            drop_block_rate=None,
-        )
-        weight_path = 'models/vit_base_p16_224_in22k.pth'
+                    "vit_base_patch16_224.augreg_in21k",
+                    pretrained=False,
+                    num_classes=21843,
+                    drop_block_rate=None,
+                )
+        weight_path = "/shared/results/common/krukowski/intact/ViT/vit_base_p16_224_in22k.pth"
         model.load_state_dict(torch.load(weight_path, weights_only=True), False)
         model.head = torch.nn.Linear(768,SequentialImageNet_CR.N_CLASSES)
         return model
