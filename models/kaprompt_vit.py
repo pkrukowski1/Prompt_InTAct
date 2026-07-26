@@ -162,6 +162,9 @@ class KAPROMPTVIT(ContinualModel):
         self.head_drop.requires_grad_(False)
 
         if args.use_interval_activation:
+            assert args.freeze_clf == 0, \
+                "InTAct requires a trainable classifier head (--freeze_clf=0). " \
+                "Regularizing a frozen classifier has no effect."
             original_head = self.net.head
             self.net.head = nn.Sequential(
                 IntervalActivation(768, use_non_linear_transform=False),
