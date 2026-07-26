@@ -9,6 +9,9 @@
 
 source activate prompt_intact
 
+SCRIPT_DIR=$(dirname "$0")
+source ${SCRIPT_DIR}/grid_config.sh
+
 # experiment settings
 DATASET=DomainNet
 N_CLASS=345
@@ -24,9 +27,7 @@ OVERWRITE=1
 
 ###############################################################
 
-VAR_LOSS_SCALES=("0.001" "0.01" "0.1" "1.0")
-INTERNAL_REPRESENTATION_DRIFT_REG_SCALES=("0.0001" "0.001" "0.1")
-FEATURE_LOSS_SCALE="0.0001"
+FEATURE_LOSS_SCALE=${FEATURE_LOSS_SCALES[0]}
 
 # Create combined array of all combinations
 COMBINATIONS=()
