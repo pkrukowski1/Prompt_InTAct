@@ -30,6 +30,9 @@ IFS='_' read -r VAR_LOSS INTERNAL_DRIFT <<< "${COMBINATIONS[$SLURM_ARRAY_TASK_ID
 
 echo "Task ${SLURM_ARRAY_TASK_ID}: var=${VAR_LOSS} drift=${INTERNAL_DRIFT} feat=${FEATURE_LOSS_SCALE}"
 
+RUN_DIR=${OUTDIR}/var${VAR_LOSS}_out${INTERNAL_DRIFT}_drift${FEATURE_LOSS_SCALE}
+mkdir -p ${RUN_DIR}
+
 CUDA_VISIBLE_DEVICES=0 python main.py \
     --info=var${VAR_LOSS}_out${INTERNAL_DRIFT}_drift${FEATURE_LOSS_SCALE} \
     --dataset=domain-net \
@@ -39,7 +42,7 @@ CUDA_VISIBLE_DEVICES=0 python main.py \
     --prompt_comp \
     --prompt_per_task=25 \
     --use_prompt_penalty_3 \
-    --output_path=${OUTDIR} \
+    --output_path=${RUN_DIR} \
     --fuse_prompt \
     --use_ema_c \
     --adapt_ema_c \
