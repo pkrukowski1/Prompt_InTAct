@@ -17,7 +17,7 @@ FEATS="0 0.01 0.1"            # lambda_Feat
 ALIGNS="1.0"                  # lambda_Align
 EMA=1                         # 1: keep KA-Prompt's EMA classifier, 0: without it
 SEED=3407
-OUTDIR=/shared/results/common/helm/KA-Prompt-InTAct/v2/ImageNet-C/val
+OUTDIR=/shared/results/pkrukowski/InTAct/KA-Prompt/ImageNet-C/val
 
 # KA-Prompt settings from scripts/ImageNet-C.sh
 KA="--dataset=imagenet-c --pool_size=15 --prompt_num=20 --topN=1 --prompt_comp --prompt_per_task=1 --use_prompt_penalty_3 --fuse_prompt --lr=0.004 --resize_test=230 --resize_train=230 --greedy_init --tau 0.01 --aux_weight 1.0 --query_pos -1 --n_epochs=5"

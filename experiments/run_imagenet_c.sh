@@ -13,7 +13,7 @@
 # best configuration of grid_imagenet_c.sh (tools/collect_results.py prints this line)
 VAR=""; DRIFT=""; FEAT=""; ALIGN=""; EMA=1
 SEEDS=(3407 0 42)
-OUTDIR=/shared/results/common/helm/KA-Prompt-InTAct/v2/ImageNet-C/test
+OUTDIR=/shared/results/pkrukowski/InTAct/KA-Prompt/v2/ImageNet-C/test
 
 # KA-Prompt settings from scripts/ImageNet-C.sh
 KA="--dataset=imagenet-c --pool_size=15 --prompt_num=20 --topN=1 --prompt_comp --prompt_per_task=1 --use_prompt_penalty_3 --fuse_prompt --lr=0.004 --resize_test=230 --resize_train=230 --greedy_init --tau 0.01 --aux_weight 1.0 --query_pos -1 --n_epochs=5"
