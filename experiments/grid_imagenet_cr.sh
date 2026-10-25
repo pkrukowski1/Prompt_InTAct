@@ -25,7 +25,7 @@ EMA_FLAGS="--use_ema_c --adapt_ema_c --adapt_h=8.7"
 N_TASKS=30
 
 eval "$(conda shell.bash hook)"
-conda activate DIL
+conda activate intact_with_ka_prompt
 [ -f main.py ] || { echo "submit from the repository root"; exit 1; }
 [ -d datasets/image_list/imagenet-c_val ] || { echo "run python tools/make_val_lists.py first"; exit 1; }
 [ -d datasets/image_list/imagenet-r_val ] || { echo "run python tools/make_val_lists.py first"; exit 1; }

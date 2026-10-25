@@ -21,7 +21,7 @@ EMA_FLAGS="--use_ema_c --adapt_ema_c --adapt_h=6.5"
 N_TASKS=15
 
 eval "$(conda shell.bash hook)"
-conda activate DIL
+conda activate intact_with_ka_prompt
 [ -f main.py ] || { echo "submit from the repository root"; exit 1; }
 
 ID=${SLURM_ARRAY_TASK_ID:?submit with sbatch, or set SLURM_ARRAY_TASK_ID}

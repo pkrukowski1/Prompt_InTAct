@@ -145,8 +145,8 @@ def test_pretrained_cprompt(model: ContinualModel, dataset: ContinualDataset,
     # from utils.visualize_attention import visyalize_compare
     # import copy
     # compared_model=copy.deepcopy(model)
-    # # path='/home/xukunlun/CODE/DIL/CPrompt-Aligner/Cprompt_models/ImageNetR'
-    # compared_model.args.output_path='/home/xukunlun/CODE/DIL/CPrompt-Aligner/Cprompt_models'
+    # # path='/home/xukunlun/CODE/intact_with_ka_prompt/CPrompt-Aligner/Cprompt_models/ImageNetR'
+    # compared_model.args.output_path='/home/xukunlun/CODE/intact_with_ka_prompt/CPrompt-Aligner/Cprompt_models'
     # compared_model.args.info='DomainNet' #'ImageNetR'
     # compared_model.load_prompt_from_file(dataset.N_TASKS-1)
     # compared_model.load_model_from_file(dataset.N_TASKS-1)

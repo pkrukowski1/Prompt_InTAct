@@ -23,8 +23,8 @@ The *official* repository for  [Componential Prompt-Knowledge Alignment for Doma
 
 ## Installation
 ```shell
-conda create -n DIL python=3.9
-conda activate DIL
+conda create -n intact_with_ka_prompt python=3.9
+conda activate intact_with_ka_prompt
 pip install torch==2.4.0 torchvision==0.19.0 torchaudio==2.4.0 --index-url https://download.pytorch.org/whl/cu118
 pip install -r requirements.txt
 ```
