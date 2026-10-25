@@ -6,6 +6,7 @@ import re
 import sys
 
 N_TASKS = {'DomainNet': 6, 'ImageNet-R': 15, 'ImageNet-C': 15, 'ImageNet-Mix': 30}
+GRID_SEED = '3407'   # seed of the grid scripts; the best configuration is chosen by this run
 SCRIPT = {'DomainNet': 'domainnet', 'ImageNet-R': 'imagenet_r', 'ImageNet-C': 'imagenet_c', 'ImageNet-Mix': 'imagenet_cr'}
 NAME = re.compile(r'^(?P<variant>intact_ema|intact_noema)_var(?P<var>[^_]+)_drift(?P<drift>[^_]+)'
                   r'_feat(?P<feat>[^_]+)_align(?P<align>[^_]+)$')
@@ -77,16 +78,19 @@ def main():
         fs = [r[2] for r in runs.values() if r[2] is not None]
         aa, sd = mean_std(aas)
         rows.append(dict(name=name, params=m.groupdict() if m else None, aa=aa, sd=sd, f=mean_std(fs)[0],
+                         grid=runs[GRID_SEED][1] if GRID_SEED in runs else None,
                          done=len(aas), seeds=len(seeds),
                          unfinished=[f'seed {s}: {r[0]}/{n_tasks}' for s, r in runs.items() if r[1] is None]))
     if not rows:
         sys.exit(f'no runs in {folder}')
 
-    ka = next((r for r in rows if r['name'] == 'ka' and r['done'] and not r['unfinished']), None)
+    base = {b: next((r for r in rows if r['name'] == b and r['done'] and not r['unfinished']), None)
+            for b in ('ka', 'ka_noema')}
     rows.sort(key=lambda r: (r['aa'] is None, -(r['aa'] or 0)))
     print(f'{dataset} | {"validation split" if split == "val" else "official test lists"} | {n_tasks} tasks | {folder}')
     w = max(len('configuration'), max(len(r['name']) for r in rows))
-    hdr = f"{'#':>3}  {'configuration':<{w}} {'AA':>6} {'std':>5} {'F':>6} {'vs ka':>6}  seeds  unfinished"
+    hdr = (f"{'#':>3}  {'configuration':<{w}} {'AA':>6} {'std':>5} {'F':>6} {'AA ' + GRID_SEED:>7} {'vs ka':>6} {'vs ka_noema':>11}"
+           f"  seeds  unfinished")
     print(hdr + '\n' + '-' * len(hdr))
     shown = 0
     for i, r in enumerate(rows, 1):
@@ -94,23 +98,26 @@ def main():
             shown += 1
             if args.top and shown > args.top:
                 continue
-        gain = '-' if (ka is None or r['aa'] is None or r is ka) else f"{r['aa'] - ka['aa']:+.2f}"
-        print(f"{i:>3}  {r['name']:<{w}} {fmt(r['aa']):>6} {fmt(r['sd']):>5} {fmt(r['f']):>6} {gain:>6}  "
-              f"{r['done']}/{r['seeds']:<4} {', '.join(r['unfinished'])}")
+        gain = {b: '-' if (base[b] is None or r['aa'] is None or r is base[b]) else f"{r['aa'] - base[b]['aa']:+.2f}"
+                for b in base}
+        print(f"{i:>3}  {r['name']:<{w}} {fmt(r['aa']):>6} {fmt(r['sd']):>5} {fmt(r['f']):>6} {fmt(r['grid']):>7} {gain['ka']:>6} "
+              f"{gain['ka_noema']:>11}  {r['done']}/{r['seeds']:<4} {', '.join(r['unfinished'])}")
 
     with open(os.path.join(folder, 'summary.tsv'), 'w') as f:
-        f.write('configuration\tAA\tstd\tF\tseeds_finished\tseeds\n')
+        f.write(f'configuration\tAA\tstd\tF\tseeds_finished\tseeds\tAA_seed{GRID_SEED}\n')
         for r in rows:
-            f.write(f"{r['name']}\t{fmt(r['aa'])}\t{fmt(r['sd'])}\t{fmt(r['f'])}\t{r['done']}\t{r['seeds']}\n")
+            f.write(f"{r['name']}\t{fmt(r['aa'])}\t{fmt(r['sd'])}\t{fmt(r['f'])}\t{r['done']}\t{r['seeds']}\t{fmt(r['grid'])}\n")
     print(f"\nwrote {os.path.join(folder, 'summary.tsv')}")
 
-    best = next((r for r in rows if r['params'] and r['done'] and not r['unfinished']), None)
-    if split == 'val' and best:
-        p = best['params']
-        print(f"\nbest configuration on the validation split: {best['name']} (AA {best['aa']:.2f})")
-        print(f'put this line into experiments/run_{SCRIPT[dataset]}.sh:')
-        print(f'VAR="{p["var"]}"; DRIFT="{p["drift"]}"; FEAT="{p["feat"]}"; ALIGN="{p["align"]}"; '
-              f'EMA={1 if p["variant"] == "intact_ema" else 0}')
+    for variant, suffix, ema in (('intact_ema', '', 1), ('intact_noema', '_noema', 0)):
+        cands = [r for r in rows if r['params'] and r['params']['variant'] == variant and r['grid'] is not None]
+        if cands:
+            best = max(cands, key=lambda r: r['grid'])
+            p = best['params']
+            print(f"\nbest {variant} configuration by its seed-{GRID_SEED} run ({len(cands)} configurations finished): "
+                  f"{best['name']} (AA {best['grid']:.2f})")
+            print(f'put this line into experiments/run_{SCRIPT[dataset]}{suffix}.sh:')
+            print(f'VAR="{p["var"]}"; DRIFT="{p["drift"]}"; FEAT="{p["feat"]}"; ALIGN="{p["align"]}"; EMA={ema}')
 
 
 if __name__ == '__main__':
