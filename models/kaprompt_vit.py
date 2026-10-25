@@ -176,7 +176,8 @@ class KAPROMPTVIT(ContinualModel):
                 internal_repr_drift_loss_scale=args.internal_repr_drift_loss_scale,
                 feature_loss_scale=args.feature_loss_scale,
                 use_align_loss=args.use_align_loss,
-                use_metrics=getattr(args, 'use_intact_metrics', False)
+                use_metrics=getattr(args, 'use_intact_metrics', False),
+                align_loss_scale=getattr(args, 'align_loss_scale', 1.0)
             )
         else:
             self.interval_penalization = None
@@ -282,6 +283,22 @@ class KAPROMPTVIT(ContinualModel):
 
         if self.args.use_interval_activation and self.interval_penalization is not None and task_id >= 0:
             self.interval_penalization.setup_task(task_id, self.head)
+            # Anchor L_IntDrift to the classifier KA-Prompt actually evaluates. With --use_ema_c the deployed
+            # head is the EMA shadow, not the raw weights that setup_task() snapshotted.
+            anchor = getattr(self.args, 'intact_anchor', 'auto')
+            if anchor == 'auto':
+                anchor = 'ema' if self.args.use_ema_c else 'raw'
+            if anchor == 'ema' and task_id > 0:
+                if not (self.args.use_ema_c and getattr(self, 'ema_c', None) is not None and len(self.ema_c.shadow) > 0):
+                    raise ValueError("--intact_anchor ema requires --use_ema_c")
+                head_names = {id(p): n for n, p in self.head.named_parameters()}
+                n_anchored = 0
+                for full_name, p in self.named_parameters():
+                    if id(p) in head_names and full_name in self.ema_c.shadow:
+                        self.interval_penalization.params_buffer[head_names[id(p)]] = \
+                            self.ema_c.shadow[full_name].detach().clone()
+                        n_anchored += 1
+                print(f"[InTAct] L_IntDrift anchored to the EMA classifier ({n_anchored} tensors)")
 
         self.old_model=None
                
@@ -290,7 +307,7 @@ class KAPROMPTVIT(ContinualModel):
             self.old_model=copy.deepcopy(self)
             self.old_model.eval()
             if task_id>0:
-                if not (self.args.ema_after_domain_2 and 1==task_id): # 设置第一个域不进行ema
+                if not (self.args.ema_after_domain_2 and 1==task_id):
                     self.old_model.ema_before_eval(task_id)
         
                 for i in range(12):
@@ -602,13 +619,17 @@ class KAPROMPTVIT(ContinualModel):
                 logits_old, z_clf_old= self.old_model.forward_vit_old(inputs, t, p_keys_new, keys, self.pool.prompt_list)
                 loss=loss+self.loss(logits_old, labels)*self.args.aux_weight
 
-            if self.args.use_interval_activation and self.interval_penalization is not None and t > 0:
-                with torch.no_grad():
-                    _, _, old_z_clf, _ = self.old_model.forward_cprompt(inputs, task_id=None)
-                    old_features = self.old_model.fc_norm(old_z_clf).detach()
-                for m in self.old_model.head.modules():
-                    if isinstance(m, IntervalActivation):
-                        m.test_act_buffer = []
+            if self.args.use_interval_activation and self.interval_penalization is not None:
+                # L_Var is applied in every task. L_IntDrift, L_Feat and L_Align need the hypercube of the
+                # previous tasks, so the regularizer adds them from the second task on.
+                old_features = None
+                if t > 0 and self.interval_penalization.feature_loss_scale > 0:   # lambda_Feat = 0 skips this pass
+                    with torch.no_grad():
+                        _, _, old_z_clf, _ = self.old_model.forward_cprompt(inputs, task_id=None)
+                        old_features = self.old_model.fc_norm(old_z_clf).detach()
+                    for m in self.old_model.head.modules():
+                        if isinstance(m, IntervalActivation):
+                            m.test_act_buffer = []
                 loss = self.interval_penalization.forward(inputs, loss, old_features=old_features)
 
             self.opt.zero_grad()

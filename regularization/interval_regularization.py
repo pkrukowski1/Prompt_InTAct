@@ -34,7 +34,8 @@ class IntervalPenalization(nn.Module):
             internal_repr_drift_loss_scale: float = 1.0,
             feature_loss_scale: float = 1.0,
             use_align_loss: bool = True,
-            use_metrics: bool = False
+            use_metrics: bool = False,
+            align_loss_scale: float = 1.0
         ) -> None:
         super().__init__()
         self.task_id = None
@@ -44,6 +45,7 @@ class IntervalPenalization(nn.Module):
         self.feature_loss_scale = feature_loss_scale
         self.use_align_loss = use_align_loss
         self.use_metrics = use_metrics
+        self.align_loss_scale = align_loss_scale
 
         self.params_buffer = {}
 
@@ -274,7 +276,7 @@ class IntervalPenalization(nn.Module):
                 continue
 
             acts_flat = acts.view(acts.size(0), -1)
-            batch_var = acts_flat.var(dim=0, unbiased=False).mean()
+            batch_var = acts_flat.var(dim=0, unbiased=False).mean()   # L_Var: every task
             var_loss += batch_var
 
             layer_min = layers[idx].min
@@ -341,12 +343,13 @@ class IntervalPenalization(nn.Module):
         scaled_var = self.var_loss_scale * var_loss
         scaled_output_reg = self.internal_repr_drift_loss_scale * output_reg_loss
         scaled_interval_drift = self.feature_loss_scale * interval_drift_loss
+        scaled_align = self.align_loss_scale * align_repr_loss
 
         total = (
             loss
             + scaled_var
             + scaled_output_reg
             + scaled_interval_drift
-            + align_repr_loss
+            + scaled_align
         )
         return total

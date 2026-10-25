@@ -11,6 +11,7 @@ import torch.nn.functional as F
 from PIL import Image
 from datasets.utils.validation import get_train_val
 from datasets.utils.continual_dataset import ContinualDataset, store_masked_loaders
+from datasets.utils.lists import list_root
 from datasets.utils.continual_dataset import get_previous_train_loader
 from typing import Tuple
 from datasets.transforms.denormalization import DeNormalize
@@ -37,7 +38,7 @@ class ImageNet_R(Dataset):
 
         self.mode = mode
         self.data_root = "/shared/sets/datasets/imagenet-r_InTAct/imagenet-r"
-        self.image_list_root = "./datasets/image_list/imagenet-r_list"
+        self.image_list_root = list_root("./datasets/image_list/imagenet-r_list")
         self.task_name = ['art', 'cartoon', 'deviantart', 'graffiti', 'embroidery',
                         'graphic', 'origami', 'painting', 'misc',
                         'sticker', 'sculpture', 'sketch', 'tattoo', 'toy',
@@ -93,7 +94,7 @@ class ImageNet_R_ALL(Dataset):
             )
         self.mode = mode
         self.data_root = "/shared/sets/datasets/imagenet-r_InTAct/imagenet-r"
-        self.image_list_root = "./datasets/image_list/imagenet-r_list"
+        self.image_list_root = list_root("./datasets/image_list/imagenet-r_list")
         
         self.task_name = ['art', 'cartoon', 'deviantart', 'graffiti', 'embroidery',
                         'graphic', 'origami', 'painting', 'misc',

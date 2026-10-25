@@ -179,3 +179,9 @@ def add_management_args(parser: ArgumentParser) -> None:
                         help='Enable activation center alignment loss')
     parser.add_argument('--use_intact_metrics', action='store_true', default=False,
                         help='Track and print InTAct hypercube volume ratio and constraint activation metrics')
+    parser.add_argument('--align_loss_scale', type=float, default=1.0,
+                        help='Weight of the InTAct alignment loss (was hard-coded to 1.0)')
+    parser.add_argument('--intact_anchor', type=str, default='auto', choices=['auto', 'raw', 'ema'],
+                        help="Classifier that L_IntDrift keeps fixed on the hypercube: 'raw' = trained weights at the end "
+                             "of the previous task (old behaviour); 'ema' = the EMA classifier that KA-Prompt actually "
+                             "evaluates; 'auto' = 'ema' if --use_ema_c else 'raw'")

@@ -11,6 +11,7 @@ import torch.nn.functional as F
 from PIL import Image
 from datasets.utils.validation import get_train_val
 from datasets.utils.continual_dataset import ContinualDataset, store_masked_loaders
+from datasets.utils.lists import list_root
 from datasets.utils.continual_dataset import get_previous_train_loader
 from typing import Tuple
 from datasets.transforms.denormalization import DeNormalize
@@ -36,7 +37,7 @@ class ImageNet_C(Dataset):
 
         self.mode = mode
         self.data_root = "/shared/sets/datasets/imagenet-c"
-        self.image_list_root = "datasets/image_list/imagenet-c_list"
+        self.image_list_root = list_root("datasets/image_list/imagenet-c_list")
         self.task_name = ['defocus_blur', 'glass_blur', 'motion_blur', 'zoom_blur',
                             'contrast', 'elastic_transform', 'jpeg_compression', 'pixelate',
                             'spatter', 'speckle_noise',
@@ -90,7 +91,7 @@ class ImageNet_C_ALL(Dataset):
             )
         self.mode = mode
         self.data_root = "/shared/sets/datasets/imagenet-c"
-        self.image_list_root = "datasets/image_list/imagenet-c_list"
+        self.image_list_root = list_root("datasets/image_list/imagenet-c_list")
         self.task_name = ['defocus_blur', 'glass_blur', 'motion_blur', 'zoom_blur',
                             'contrast', 'elastic_transform', 'jpeg_compression', 'pixelate',
                             'spatter', 'speckle_noise',

@@ -11,6 +11,7 @@ import torch.nn.functional as F
 from PIL import Image
 from datasets.utils.validation import get_train_val
 from datasets.utils.continual_dataset import ContinualDataset, store_masked_loaders
+from datasets.utils.lists import list_root
 from datasets.utils.continual_dataset import get_previous_train_loader
 from typing import Tuple
 from datasets.transforms.denormalization import DeNormalize
@@ -35,7 +36,7 @@ class DomainNet(Dataset):
 
         self.mode = mode
         self.data_root = "/shared/sets/datasets/DomainNet"
-        self.image_list_root = "./datasets/image_list/domainnet_list"
+        self.image_list_root = list_root("./datasets/image_list/domainnet_list")
         self.task_name = ['real','quickdraw','painting','sketch','infograph','clipart']
         self.domain = self.task_name[domain_id]
         self.image_list_path = os.path.join(self.image_list_root, self.domain + "_" + self.mode + ".txt")
@@ -85,7 +86,7 @@ class DomainNetAll(Dataset):
             )
         self.mode = mode
         self.data_root = "/shared/sets/datasets/DomainNet"
-        self.image_list_root = "./datasets/image_list/domainnet_list"
+        self.image_list_root = list_root("./datasets/image_list/domainnet_list")
         self.task_name = ['real','quickdraw','painting','sketch','infograph','clipart']
         self.path = self.get_path()
         self.length = len(self.path)
