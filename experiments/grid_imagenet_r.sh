@@ -10,8 +10,8 @@
 
 # Grid search over the InTAct hyperparameters on the official ImageNet-R train/test lists, the split of
 # KA-Prompt and of run_imagenet_r.sh, which reuses these runs as its seed 3407. One task per configuration.
-# A run that already has results is skipped, never overwritten. Each task's SLURM log is moved into its run
-# folder, $OUTDIR/<configuration>/seed-<seed>.
+# Finished runs are skipped; a crashed run continues from its last finished task (resume.pt in its run folder).
+# Each task's SLURM log is moved into its run folder, $OUTDIR/<configuration>/seed-<seed>.
 # Ranking: python tools/collect_results.py $OUTDIR
 
 VARS="0.01 0.1 1.0"           # lambda_Var
@@ -45,12 +45,21 @@ else VARIANT=intact_noema; FLAGS="$KA $INTACT --intact_anchor raw"; fi
 NAME=${VARIANT}_var${VAR}_drift${DRIFT}_feat${FEAT}_align${ALIGN}
 
 RUN=$OUTDIR/$NAME/seed-$SEED
+DONE=$(find "$RUN/results" -maxdepth 1 -name '[0-9]*.txt' 2>/dev/null | wc -l)
+# an unfinished run without resume.pt (started before resuming existed) is kept aside and started again
+if [ "$DONE" -gt 0 ] && [ "$DONE" -lt "$N_TASKS" ] && [ ! -f "$RUN/resume.pt" ]; then
+  OLD=$OUTDIR/$NAME/crashed_seed-${SEED}_$(date +%Y%m%d-%H%M%S)
+  mv "$RUN" "$OLD" && echo "moved the unfinished run without resume.pt to $OLD" && DONE=0
+fi
 # SLURM opens the log in the folder of #SBATCH --output; keep it in the run folder instead
 LOG=/shared/results/pkrukowski/InTAct/KA-Prompt/slurm-${SLURM_JOB_NAME}-${SLURM_ARRAY_JOB_ID}_${SLURM_ARRAY_TASK_ID}.out
 mkdir -p "$RUN" && [ -f "$LOG" ] && mv -n "$LOG" "$RUN/"
-# never overwrite a run folder that already has results
-DONE=$(find "$RUN/results" -maxdepth 1 -name '[0-9]*.txt' 2>/dev/null | wc -l)
 if [ "$DONE" -ge "$N_TASKS" ]; then echo "already finished: $RUN"; exit 0; fi
-if [ "$DONE" -gt 0 ]; then echo "$RUN already has results of $DONE/$N_TASKS tasks; not overwriting it (delete it to rerun)"; exit 0; fi
-echo "task $ID: $NAME, seed $SEED"
-KA_SPLIT="official" python main.py --info="seed-$SEED" --seed="$SEED" --output_path="$OUTDIR/$NAME" $FLAGS
+# skip a run that another job is still training (e.g. when an array is submitted twice)
+OWNER=$(cat "$RUN/job.txt" 2>/dev/null)
+if [ -n "$OWNER" ] && [ "$OWNER" != "${SLURM_JOB_ID:-}" ] && squeue -h -j "$OWNER" 2>/dev/null | grep -q .; then
+  echo "job $OWNER is still training $RUN"; exit 0
+fi
+[ -z "${SLURM_JOB_ID:-}" ] || echo "$SLURM_JOB_ID" > "$RUN/job.txt"
+echo "task $ID: $NAME, seed $SEED$([ -f "$RUN/resume.pt" ] && echo ', resuming after its last finished task')"
+KA_SPLIT="official" python main.py --info="seed-$SEED" --seed="$SEED" --output_path="$OUTDIR/$NAME" $FLAGS --resume

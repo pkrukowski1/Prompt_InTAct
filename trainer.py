@@ -11,6 +11,7 @@ from models.layers.interval_activation import IntervalActivation
 from datasets.utils.continual_dataset import ContinualDataset
 from typing import Tuple
 from datasets import get_dataset
+import os
 import sys
 import gc
 from utils.map import MAP
@@ -203,10 +204,22 @@ def train_cprompt(model: ContinualModel, dataset: ContinualDataset,
     results, results_mask_classes = [], []
     
     model_stash = create_stash(model, args, dataset)
-    
+
+    # --resume: tasks finished before a crash are restored from resume.pt instead of trained again
+    resume_path = os.path.join(args.output_path, args.info, 'resume.pt')
+    start_task = 0
+    if getattr(args, 'resume', False) and os.path.isfile(resume_path):
+        start_task = model.load_resume_state(resume_path) + 1
+        print(f"[resume] {resume_path}: tasks 0-{start_task - 1} are finished, continuing with task {start_task}")
+        if args.freeze_g_prompt and start_task > 0:
+            model.set_g_prompt_not_update()
+    if start_task >= dataset.N_TASKS:
+        os.remove(resume_path)
+        return
+
     print(file=sys.stderr)
     start_time = time.time()
-    for t in range(dataset.N_TASKS):
+    for t in range(start_task, dataset.N_TASKS):
         gc.collect()
         model.net.train()
         if args.dataset == "domain-net":
@@ -324,8 +337,10 @@ def train_cprompt(model: ContinualModel, dataset: ContinualDataset,
 
         model_stash['mean_accs'].append(mean_acc)
         tmp = time.time() - start_time
+        model.save_resume_state(resume_path, t)
 
     running_time = time.time() - start_time
+    os.remove(resume_path)   # all tasks finished
 
     # InTAct: final metrics and coverage table
     if hasattr(model, 'interval_penalization') and model.interval_penalization is not None and args.use_intact_metrics:

@@ -843,5 +843,83 @@ class KAPROMPTVIT(ContinualModel):
             coverage = inside_cnt / total_cnt if total_cnt > 0 else 0.0
             print(f"  Task {j}: {coverage*100:.2f}% activations inside cumulative hypercube")
         self.net.train(was_training)
+
+    def save_resume_state(self, path, task_id):
+        """Saves everything needed to continue training after task `task_id`."""
+        cpu = lambda x: x.detach().cpu().clone() if torch.is_tensor(x) else x
+        state = {
+            'task': task_id,
+            'head': {k: cpu(v) for k, v in self.net.head.state_dict().items()},
+            'pool': {k: cpu(v) for k, v in vars(self.pool).items() if k not in ('key_list', 'prompt_list')},
+            'pool_keys': [[cpu(k) for k in layer] for layer in self.pool.key_list],
+            'pool_prompts': [[cpu(p) for p in layer] for layer in self.pool.prompt_list],
+            'general_prompt': [cpu(g) for g in self.general_prompt],
+            'prompt_selected_sum': (self.prompt_selected_sum_train, self.prompt_selected_sum_test),
+            'scaler': scaler.state_dict(),
+            'rng': {'torch': torch.get_rng_state(), 'numpy': np.random.get_state(), 'python': random.getstate(),
+                    'cuda': torch.cuda.get_rng_state_all() if torch.cuda.is_available() else None},
+        }
+        if self.args.use_ema_c:
+            state['ema_c'] = {'shadow': {k: cpu(v) for k, v in self.ema_c.shadow.items()}, 'flag': self.ema_c.flag}
+        if self.args.adapt_ema_c:
+            state['adapt_ema_c'] = {'g_before': [cpu(g) for g in self.g_before], 'cnt': self.cnt, 'g_change': self.g_change,
+                                    'average_g_change': self.average_g_change, 'gamma': self.gamma}
+        if self.args.use_ema:
+            state['ema_g'] = {'general_prompt_ema': [cpu(g) for g in self.general_prompt_ema], 'flag': self.ema_g_flag}
+        if self.interval_penalization is not None:
+            layers = []
+            for m in self.head.modules():
+                if isinstance(m, IntervalActivation):
+                    pending = None
+                    if m.test_act_buffer:   # the percentiles reset_range() takes from these activations at the next task
+                        acts, _ = torch.sort(torch.cat(m.test_act_buffer, dim=0), dim=0)
+                        n = acts.size(0)
+                        lo = int(np.clip(int(n * m.lower_percentile), 0, n - 1))
+                        hi = int(np.clip(int(n * m.upper_percentile), 0, n - 1))
+                        pending = (acts[lo].clone(), acts[hi].clone())
+                    layers.append({'min': cpu(m.min), 'max': cpu(m.max), 'pending': pending})
+            ip = self.interval_penalization
+            state['intact'] = {'layers': layers, 'task_box_history': ip._task_box_history,
+                               'cumulative_box_history': ip.cumulative_box_history}
+        torch.save(state, path + '.tmp')
+        os.replace(path + '.tmp', path)
+
+    def load_resume_state(self, path):
+        """Restores the state written by save_resume_state() and returns the last finished task."""
+        state = torch.load(path, map_location='cpu', weights_only=False)
+        dev = self.device
+        self.net.head.load_state_dict(state['head'])
+        for k, v in state['pool'].items():
+            setattr(self.pool, k, v.to(dev) if torch.is_tensor(v) else v)
+        self.pool.key_list = [[k.to(dev).requires_grad_(True) for k in layer] for layer in state['pool_keys']]
+        self.pool.prompt_list = [[p.to(dev).requires_grad_(True) for p in layer] for layer in state['pool_prompts']]
+        self.general_prompt = [g.to(dev).requires_grad_(True) for g in state['general_prompt']]
+        self.prompt_selected_sum_train, self.prompt_selected_sum_test = state['prompt_selected_sum']
+        if state['scaler']:
+            scaler.load_state_dict(state['scaler'])
+        if 'ema_c' in state:
+            self.ema_c.shadow = {k: v.to(dev) for k, v in state['ema_c']['shadow'].items()}
+            self.ema_c.flag = state['ema_c']['flag']
+        if 'adapt_ema_c' in state:
+            a = state['adapt_ema_c']
+            self.g_before = [g.to(dev) for g in a['g_before']]
+            self.cnt, self.g_change, self.average_g_change, self.gamma = a['cnt'], a['g_change'], a['average_g_change'], a['gamma']
+        if 'ema_g' in state:
+            self.general_prompt_ema = [g.to(dev) for g in state['ema_g']['general_prompt_ema']]
+            self.ema_g_flag = state['ema_g']['flag']
+        if 'intact' in state:
+            acts = [m for m in self.head.modules() if isinstance(m, IntervalActivation)]
+            for m, s in zip(acts, state['intact']['layers']):
+                m.min, m.max = s['min'], s['max']
+                m.test_act_buffer = [] if s['pending'] is None else [s['pending'][0][None], s['pending'][1][None]]
+            self.interval_penalization._task_box_history = state['intact']['task_box_history']
+            self.interval_penalization.cumulative_box_history = state['intact']['cumulative_box_history']
+        rng = state['rng']
+        torch.set_rng_state(rng['torch'])
+        np.random.set_state(rng['numpy'])
+        random.setstate(rng['python'])
+        if rng['cuda'] is not None and torch.cuda.is_available():
+            torch.cuda.set_rng_state_all(rng['cuda'])
+        return state['task']
     
    

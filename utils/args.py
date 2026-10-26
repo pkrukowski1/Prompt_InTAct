@@ -185,3 +185,5 @@ def add_management_args(parser: ArgumentParser) -> None:
                         help="Classifier that L_IntDrift keeps fixed on the hypercube: 'raw' = trained weights at the end "
                              "of the previous task (old behaviour); 'ema' = the EMA classifier that KA-Prompt actually "
                              "evaluates; 'auto' = 'ema' if --use_ema_c else 'raw'")
+    parser.add_argument('--resume', action='store_true', default=False,
+                        help='continue a crashed run from resume.pt in its output folder (written after every task)')
