@@ -5,16 +5,11 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=64G
 #SBATCH --partition=dgxh100
-#SBATCH --array=0-5
+#SBATCH --array=0-2
 #SBATCH --output=/shared/results/pkrukowski/InTAct/KA-Prompt/slurm-%x-%A_%a.out
 
-# Final runs on the ImageNet-Mix test lists: tasks 0-2 KA-Prompt, tasks 3-5 KA-Prompt + InTAct (seeds 3407, 0, 42).
-# Finished runs are skipped; a crashed run continues from its last finished task (resume.pt in its run folder).
-# Each task's SLURM log is moved into its run folder, $OUTDIR/<configuration>/seed-<seed>.
-# Results: python tools/collect_results.py $OUTDIR
-
 # best configuration of grid_imagenet_cr.sh (tools/collect_results.py prints this line)
-VAR=""; DRIFT=""; FEAT=""; ALIGN=""; EMA=1
+VAR="1.0"; DRIFT="0.0001"; FEAT="0.01"; ALIGN="1.0"; EMA=1
 SEEDS=(3407 0 42)
 OUTDIR=/shared/results/pkrukowski/InTAct/KA-Prompt/ImageNet-Mix/test
 
@@ -28,18 +23,13 @@ conda activate intact_with_ka_prompt
 [ -f main.py ] || { echo "submit from the repository root"; exit 1; }
 
 ID=${SLURM_ARRAY_TASK_ID:?submit with sbatch, or set SLURM_ARRAY_TASK_ID}
-N=${#SEEDS[@]}
-[ "$ID" -lt $((2 * N)) ] || { echo "task $ID: this script has $((2 * N)) tasks"; exit 0; }
-SEED=${SEEDS[$((ID % N))]}
-if [ "$ID" -lt "$N" ]; then
-  NAME=ka; FLAGS="$KA $EMA_FLAGS"
-else
-  [ -n "$VAR" ] && [ -n "$DRIFT" ] && [ -n "$FEAT" ] && [ -n "$ALIGN" ] || { echo "task $ID: set VAR, DRIFT, FEAT, ALIGN in experiments/run_imagenet_cr.sh"; exit 1; }
-  INTACT="--use_interval_activation --var_loss_scale $VAR --internal_repr_drift_loss_scale $DRIFT --feature_loss_scale $FEAT --use_align_loss --align_loss_scale $ALIGN --use_intact_metrics"
-  if [ "$EMA" == "1" ]; then VARIANT=intact_ema; FLAGS="$KA $EMA_FLAGS $INTACT --intact_anchor ema"
-  else VARIANT=intact_noema; FLAGS="$KA $INTACT --intact_anchor raw"; fi
-  NAME=${VARIANT}_var${VAR}_drift${DRIFT}_feat${FEAT}_align${ALIGN}
-fi
+[ "$ID" -lt ${#SEEDS[@]} ] || { echo "task $ID: this script has ${#SEEDS[@]} tasks"; exit 0; }
+SEED=${SEEDS[$ID]}
+[ -n "$VAR" ] && [ -n "$DRIFT" ] && [ -n "$FEAT" ] && [ -n "$ALIGN" ] || { echo "task $ID: set VAR, DRIFT, FEAT, ALIGN in experiments/run_imagenet_cr.sh"; exit 1; }
+INTACT="--use_interval_activation --var_loss_scale $VAR --internal_repr_drift_loss_scale $DRIFT --feature_loss_scale $FEAT --use_align_loss --align_loss_scale $ALIGN --use_intact_metrics"
+if [ "$EMA" == "1" ]; then VARIANT=intact_ema; FLAGS="$KA $EMA_FLAGS $INTACT --intact_anchor ema"
+else VARIANT=intact_noema; FLAGS="$KA $INTACT --intact_anchor raw"; fi
+NAME=${VARIANT}_var${VAR}_drift${DRIFT}_feat${FEAT}_align${ALIGN}
 
 RUN=$OUTDIR/$NAME/seed-$SEED
 DONE=$(find "$RUN/results" -maxdepth 1 -name '[0-9]*.txt' 2>/dev/null | wc -l)

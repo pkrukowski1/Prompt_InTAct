@@ -8,12 +8,6 @@
 #SBATCH --array=0-2
 #SBATCH --output=/shared/results/pkrukowski/InTAct/KA-Prompt/slurm-%x-%A_%a.out
 
-# KA-Prompt on ImageNet-Mix with the settings of its official scripts/ImageNet-Mix.sh: one task per seed (3407, 0, 42),
-# official train/test lists. Same runs and output folder as tasks 0-2 of run_imagenet_cr.sh, so nothing runs twice.
-# Finished runs are skipped; a crashed run continues from its last finished task (resume.pt in its run folder).
-# Each task's SLURM log is moved into its run folder, $OUTDIR/ka/seed-<seed>.
-# Results: python tools/collect_results.py $OUTDIR   (KA-Prompt's own summary: python cal_mean_std_af.py $OUTDIR/ka)
-
 SEEDS=(3407 0 42)
 OUTDIR=/shared/results/pkrukowski/InTAct/KA-Prompt/ImageNet-Mix/test
 
