@@ -1,10 +1,10 @@
 #!/bin/bash
 #SBATCH --job-name=ka_ImageNet-Mix
-#SBATCH --qos=normal
+#SBATCH --qos=batch
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=64G
-#SBATCH --partition=dgxh100
+#SBATCH --partition=rtx4090_batch
 #SBATCH --array=0-2
 #SBATCH --output=/shared/results/pkrukowski/InTAct/KA-Prompt/slurm-%x-%A_%a.out
 

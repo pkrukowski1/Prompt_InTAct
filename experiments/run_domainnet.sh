@@ -1,15 +1,15 @@
 #!/bin/bash
 #SBATCH --job-name=run_DomainNet
-#SBATCH --qos=normal
+#SBATCH --qos=batch
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=64G
-#SBATCH --partition=dgxh100
+#SBATCH --partition=rtx4090_batch
 #SBATCH --array=0-2
 #SBATCH --output=/shared/results/pkrukowski/InTAct/KA-Prompt/slurm-%x-%A_%a.out
 
-# best configuration of grid_domainnet.sh (tools/collect_results.py prints this line)
-VAR=""; DRIFT=""; FEAT=""; ALIGN=""; EMA=1
+# best configuration of grid_domainnet.sh or grid_domainnet_raw.sh (tools/collect_results.py prints this line)
+VAR=""; DRIFT=""; FEAT=""; ALIGN=""; EMA=1; ANCHOR=ema
 SEEDS=(3407 0 42)
 OUTDIR=/shared/results/pkrukowski/InTAct/KA-Prompt/DomainNet/test
 
@@ -27,8 +27,9 @@ ID=${SLURM_ARRAY_TASK_ID:?submit with sbatch, or set SLURM_ARRAY_TASK_ID}
 SEED=${SEEDS[$ID]}
 [ -n "$VAR" ] && [ -n "$DRIFT" ] && [ -n "$FEAT" ] && [ -n "$ALIGN" ] || { echo "task $ID: set VAR, DRIFT, FEAT, ALIGN in experiments/run_domainnet.sh"; exit 1; }
 INTACT="--use_interval_activation --var_loss_scale $VAR --internal_repr_drift_loss_scale $DRIFT --feature_loss_scale $FEAT --use_align_loss --align_loss_scale $ALIGN --use_intact_metrics"
-if [ "$EMA" == "1" ]; then VARIANT=intact_ema; FLAGS="$KA $EMA_FLAGS $INTACT --intact_anchor ema"
-else VARIANT=intact_noema; FLAGS="$KA $INTACT --intact_anchor raw"; fi
+if [ "$EMA" != "1" ]; then VARIANT=intact_noema; FLAGS="$KA $INTACT --intact_anchor raw"
+elif [ "$ANCHOR" == "raw" ]; then VARIANT=intact_ema_raw; FLAGS="$KA $EMA_FLAGS $INTACT --intact_anchor raw"
+else VARIANT=intact_ema; FLAGS="$KA $EMA_FLAGS $INTACT --intact_anchor ema"; fi
 NAME=${VARIANT}_var${VAR}_drift${DRIFT}_feat${FEAT}_align${ALIGN}
 
 RUN=$OUTDIR/$NAME/seed-$SEED

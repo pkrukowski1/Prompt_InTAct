@@ -1,11 +1,11 @@
 #!/bin/bash
 #SBATCH --job-name=grid_noema_DomainNet
-#SBATCH --qos=normal
+#SBATCH --qos=batch
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=64G
-#SBATCH --partition=dgxh100
-#SBATCH --array=0-26
+#SBATCH --partition=rtx4090_batch
+#SBATCH --array=0-17
 #SBATCH --output=/shared/results/pkrukowski/InTAct/KA-Prompt/slurm-%x-%A_%a.out
 
 # KA-Prompt without its EMA classifier, so only InTAct protects the classifier. Same grid and output folder
@@ -15,11 +15,11 @@
 # Finished runs are skipped; a crashed run continues from its last finished task (resume.pt in its run folder).
 # Each task's SLURM log is moved into its run folder, $OUTDIR/<configuration>/seed-<seed>.
 # Ranking: python tools/collect_results.py $OUTDIR
-# Two accounts: sbatch --array=0-13 experiments/grid_domainnet_noema.sh  and  sbatch --array=14-26 experiments/grid_domainnet_noema.sh
+# Two accounts: sbatch --array=0-8 experiments/grid_domainnet_noema.sh  and  sbatch --array=9-17 experiments/grid_domainnet_noema.sh
 
 VARS="0.01 0.1 1.0"           # lambda_Var
 DRIFTS="0.0001 0.001 0.01"    # lambda_IntDrift
-FEATS="0 0.01 0.1"            # lambda_Feat
+FEATS="0.01 0.1"              # lambda_Feat
 ALIGNS="1.0"                  # lambda_Align
 EMA=0                         # KA-Prompt's EMA classifier off
 SEED=3407

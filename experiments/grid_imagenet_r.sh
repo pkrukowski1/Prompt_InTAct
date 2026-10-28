@@ -1,11 +1,11 @@
 #!/bin/bash
 #SBATCH --job-name=grid_ImageNet-R
-#SBATCH --qos=normal
+#SBATCH --qos=batch
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=64G
-#SBATCH --partition=dgxh100
-#SBATCH --array=0-26
+#SBATCH --partition=rtx4090_batch
+#SBATCH --array=0-17
 #SBATCH --output=/shared/results/pkrukowski/InTAct/KA-Prompt/slurm-%x-%A_%a.out
 
 # Grid search over the InTAct hyperparameters on the official ImageNet-R train/test lists, the split of
@@ -16,7 +16,7 @@
 
 VARS="0.01 0.1 1.0"           # lambda_Var
 DRIFTS="0.0001 0.001 0.01"    # lambda_IntDrift
-FEATS="0 0.01 0.1"            # lambda_Feat
+FEATS="0.01 0.1"              # lambda_Feat
 ALIGNS="1.0"                  # lambda_Align
 EMA=1                         # 1: keep KA-Prompt's EMA classifier, 0: without it
 SEED=3407

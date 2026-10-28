@@ -8,9 +8,11 @@ import sys
 N_TASKS = {'DomainNet': 6, 'ImageNet-R': 15, 'ImageNet-C': 15, 'ImageNet-Mix': 30}
 GRID_SEED = '3407'   # seed of the grid scripts; the best configuration is chosen by this run
 SCRIPT = {'DomainNet': 'domainnet', 'ImageNet-R': 'imagenet_r', 'ImageNet-C': 'imagenet_c', 'ImageNet-Mix': 'imagenet_cr'}
-NAME = re.compile(r'^(?P<variant>intact_ema|intact_noema)_var(?P<var>[^_]+)_drift(?P<drift>[^_]+)'
+NAME = re.compile(r'^(?P<variant>intact_ema_raw|intact_ema|intact_noema)_var(?P<var>[^_]+)_drift(?P<drift>[^_]+)'
                   r'_feat(?P<feat>[^_]+)_align(?P<align>[^_]+)$')
 FLOAT = re.compile(r'[-+]?\d*\.\d+(?:[eE][-+]?\d+)?|[-+]?\d+(?:[eE][-+]?\d+)?')
+GRID_LINE = re.compile(r'^(VARS|DRIFTS|FEATS|ALIGNS)="([^"]*)"', re.M)
+GRID_FILE = {'intact_ema': '', 'intact_ema_raw': '_raw', 'intact_noema': '_noema'}
 ACC_LINE = re.compile(r'Accuracy for \d+ task\(s\):\s*([-+]?[\d.]+)')
 
 
@@ -41,6 +43,17 @@ def read_run(run_dir, n_tasks):
     final = stages[-1]
     forget = [max(stages[s][d] for s in range(d, n_tasks - 1)) - final[d] for d in range(n_tasks - 1)]
     return n_tasks, printed[-1], round(sum(forget) / len(forget), 2)
+
+
+def grid_configs(dataset, variant):
+    # (var, drift, feat, align) of experiments/grid_<dataset><suffix>.sh; None if the script is not next to tools/
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'experiments',
+                        f'grid_{SCRIPT[dataset]}{GRID_FILE[variant]}.sh')
+    if not os.path.isfile(path):
+        return None
+    v = dict(GRID_LINE.findall(open(path).read()))
+    return {(a, b, c, d) for a in v['VARS'].split() for b in v['DRIFTS'].split() for c in v['FEATS'].split()
+            for d in v['ALIGNS'].split()}
 
 
 def mean_std(xs):
@@ -86,9 +99,15 @@ def main():
 
     base = {b: next((r for r in rows if r['name'] == b and r['done'] and not r['unfinished']), None)
             for b in ('ka', 'ka_noema')}
+    grids = {v: grid_configs(dataset, v) for v in GRID_FILE}
+    for r in rows:
+        p = r['params']
+        r['in_grid'] = not p or grids[p['variant']] is None or \
+            (p['var'], p['drift'], p['feat'], p['align']) in grids[p['variant']]
+        r['label'] = r['name'] if r['in_grid'] else r['name'] + ' *'
     rows.sort(key=lambda r: (r['aa'] is None, -(r['aa'] or 0)))
     print(f'{dataset} | {"validation split" if split == "val" else "official test lists"} | {n_tasks} tasks | {folder}')
-    w = max(len('configuration'), max(len(r['name']) for r in rows))
+    w = max(len('configuration'), max(len(r['label']) for r in rows))
     hdr = (f"{'#':>3}  {'configuration':<{w}} {'AA':>6} {'std':>5} {'F':>6} {'AA ' + GRID_SEED:>7} {'vs ka':>6} {'vs ka_noema':>11}"
            f"  seeds  unfinished")
     print(hdr + '\n' + '-' * len(hdr))
@@ -100,24 +119,33 @@ def main():
                 continue
         gain = {b: '-' if (base[b] is None or r['aa'] is None or r is base[b]) else f"{r['aa'] - base[b]['aa']:+.2f}"
                 for b in base}
-        print(f"{i:>3}  {r['name']:<{w}} {fmt(r['aa']):>6} {fmt(r['sd']):>5} {fmt(r['f']):>6} {fmt(r['grid']):>7} {gain['ka']:>6} "
+        print(f"{i:>3}  {r['label']:<{w}} {fmt(r['aa']):>6} {fmt(r['sd']):>5} {fmt(r['f']):>6} {fmt(r['grid']):>7} {gain['ka']:>6} "
               f"{gain['ka_noema']:>11}  {r['done']}/{r['seeds']:<4} {', '.join(r['unfinished'])}")
 
     with open(os.path.join(folder, 'summary.tsv'), 'w') as f:
         f.write(f'configuration\tAA\tstd\tF\tseeds_finished\tseeds\tAA_seed{GRID_SEED}\n')
         for r in rows:
             f.write(f"{r['name']}\t{fmt(r['aa'])}\t{fmt(r['sd'])}\t{fmt(r['f'])}\t{r['done']}\t{r['seeds']}\t{fmt(r['grid'])}\n")
+    if not all(r['in_grid'] for r in rows):
+        print(f'* not in the current grid (experiments/grid_{SCRIPT[dataset]}*.sh), so never chosen as the best configuration')
     print(f"\nwrote {os.path.join(folder, 'summary.tsv')}")
 
-    for variant, suffix, ema in (('intact_ema', '', 1), ('intact_noema', '_noema', 0)):
-        cands = [r for r in rows if r['params'] and r['params']['variant'] == variant and r['grid'] is not None]
+    best = {}
+    for variant, suffix, tail in (('intact_ema', '', 'EMA=1; ANCHOR=ema'), ('intact_ema_raw', '', 'EMA=1; ANCHOR=raw'),
+                                  ('intact_noema', '_noema', 'EMA=0')):
+        cands = [r for r in rows if r['params'] and r['params']['variant'] == variant and r['grid'] is not None
+                 and r['in_grid']]
         if cands:
-            best = max(cands, key=lambda r: r['grid'])
-            p = best['params']
+            b = best[variant] = max(cands, key=lambda r: r['grid'])
+            p = b['params']
             print(f"\nbest {variant} configuration by its seed-{GRID_SEED} run ({len(cands)} configurations finished): "
-                  f"{best['name']} (AA {best['grid']:.2f})")
+                  f"{b['name']} (AA {b['grid']:.2f})")
             print(f'put this line into experiments/run_{SCRIPT[dataset]}{suffix}.sh:')
-            print(f'VAR="{p["var"]}"; DRIFT="{p["drift"]}"; FEAT="{p["feat"]}"; ALIGN="{p["align"]}"; EMA={ema}')
+            print(f'VAR="{p["var"]}"; DRIFT="{p["drift"]}"; FEAT="{p["feat"]}"; ALIGN="{p["align"]}"; {tail}')
+    if 'intact_ema' in best and 'intact_ema_raw' in best:
+        e, r = best['intact_ema']['grid'], best['intact_ema_raw']['grid']
+        print(f"\nwith KA-Prompt's EMA classifier (seed {GRID_SEED}): EMA anchor {e:.2f}, raw anchor {r:.2f} "
+              f"-> use the {'raw' if r > e else 'EMA'} anchor line in experiments/run_{SCRIPT[dataset]}.sh")
 
 
 if __name__ == '__main__':

@@ -1,11 +1,11 @@
 #!/bin/bash
 #SBATCH --job-name=grid_noema_ImageNet-Mix
-#SBATCH --qos=normal
+#SBATCH --qos=batch
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=64G
-#SBATCH --partition=dgxh100
-#SBATCH --array=0-26
+#SBATCH --partition=rtx4090_batch
+#SBATCH --array=0-17
 #SBATCH --output=/shared/results/pkrukowski/InTAct/KA-Prompt/slurm-%x-%A_%a.out
 
 # KA-Prompt without its EMA classifier, so only InTAct protects the classifier. Same grid and output folder
@@ -18,7 +18,7 @@
 
 VARS="0.01 0.1 1.0"           # lambda_Var
 DRIFTS="0.0001 0.001 0.01"    # lambda_IntDrift
-FEATS="0 0.01 0.1"            # lambda_Feat
+FEATS="0.01 0.1"              # lambda_Feat
 ALIGNS="1.0"                  # lambda_Align
 EMA=0                         # KA-Prompt's EMA classifier off
 SEED=3407
