@@ -9,7 +9,7 @@
 #SBATCH --output=/shared/results/pkrukowski/InTAct/KA-Prompt/slurm-%x-%A_%a.out
 
 # best configuration of grid_imagenet_cr.sh or grid_imagenet_cr_raw.sh (tools/collect_results.py prints this line)
-VAR="1.0"; DRIFT="0.0001"; FEAT="0.01"; ALIGN="1.0"; EMA=1; ANCHOR=ema
+VAR="1.0"; DRIFT="0.0001"; FEAT="0.01"; ALIGN="1.0"; EMA=1; ANCHOR=raw
 SEEDS=(3407 0 42)
 OUTDIR=/shared/results/pkrukowski/InTAct/KA-Prompt/ImageNet-Mix/test
 
