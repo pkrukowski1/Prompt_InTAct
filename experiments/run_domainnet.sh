@@ -1,16 +1,16 @@
 #!/bin/bash
 #SBATCH --job-name=run_DomainNet
-#SBATCH --qos=batch
+#SBATCH --qos=normal
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=64G
-#SBATCH --partition=rtx4090_batch
-#SBATCH --array=0-2
+#SBATCH --partition=dgxh100
+#SBATCH --array=0-9
 #SBATCH --output=/shared/results/pkrukowski/InTAct/KA-Prompt/slurm-%x-%A_%a.out
 
 # best configuration of grid_domainnet.sh or grid_domainnet_raw.sh (tools/collect_results.py prints this line)
-VAR=""; DRIFT=""; FEAT=""; ALIGN=""; EMA=1; ANCHOR=ema
-SEEDS=(3407 0 42)
+VAR="0.1"; DRIFT="0.0001"; FEAT="0.01"; ALIGN="1.0"; EMA=1; ANCHOR=raw
+SEEDS=(3407 0 42 8744 7256 3697 5718 7540 4645 2968)
 OUTDIR=/shared/results/pkrukowski/InTAct/KA-Prompt/DomainNet/test
 
 # KA-Prompt settings from scripts/DomainNet.sh
