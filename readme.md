@@ -1,4 +1,4 @@
-# [NeurIPS 2026] Interval-based Task Activation Consolidation
+# [NeurIPS 2026] InTAct: Interval-based Task Activation Consolidation
 
 <div align="center">
   <div>
@@ -29,7 +29,7 @@
 </div>
 <p align="center">
   <a href='https://arxiv.org/abs/2511.17439'><img src='https://img.shields.io/badge/Arxiv-2505.04575-A42C25.svg?logo=arXiv'></a>
-  <a href='[https://arxiv.org/abs/2511.17439](https://github.com/pkrukowski1/Prompt_InTAct)'><img src="https://hitscounter.dev/api/hit?url=https%3A%2F%2Fgithub.com%2Fzhoujiahuan1991%2FICML2025-KA-Prompt&label=KA-Prompt&icon=github&color=%233d8bfd"></a>
+  <a href='[https://arxiv.org/abs/2511.17439](https://github.com/pkrukowski1/Prompt_InTAct)'></a>
 </p>
 
 The *official* repository for  InTAct.
