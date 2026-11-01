@@ -1,13 +1,29 @@
-# [ICML2025] Componential Prompt-Knowledge Alignment for Domain Incremental Learning
+# [NeurIPS 2026] Interval-based Task Activation Consolidation
 
 <div align="center">
-
-<div>
-      Kunlun Xu<sup>1</sup>&emsp; Xu Zou<sup>2</sup>&emsp; Gang Hua<sup>3</sup>&emsp; Jiahuan Zhou<sup>1*</sup>
+  <div>
+    Patryk Krukowski<sup>1,2,*</sup>&emsp;
+    Jan Miksa<sup>1,3</sup>&emsp;
+    Piotr Helm<sup>1</sup>&emsp;
+    Jacek Tabor<sup>4,5</sup>&emsp;
+    Paweł Wawrzyński<sup>3</sup>&emsp;
+    Przemysław Spurek<sup>3,4</sup>
   </div>
-<div>
-
-  <sup>1</sup>Wangxuan Institute of Computer Technology, Peking University, Beijing, China&emsp; <sup>2</sup>School of Artificial Intelligence and Automation, Huazhong University of Science and Technology, Wuhan, China&emsp; <sup>3</sup>Amazon.com, Inc, Bellevue, WA 98004, USA
+  <br>
+  <div>
+    <sup>1</sup>Doctoral School of Exact and Natural Sciences, Jagiellonian University, Kraków, Poland
+    <br>
+    <sup>2</sup>Akces NCBR
+    <br>
+    <sup>3</sup>IDEAS Research Institute
+    <br>
+    <sup>4</sup>Jagiellonian University, Kraków, Poland
+    <br>
+    <sup>5</sup>Centre for Credible AI
+    <br><br>
+    <sup>*</sup>Corresponding author: patryk.krukowski@doctoral.uj.edu.pl
+  </div>
+</div>
 
 </div>
 </div>
@@ -59,8 +75,6 @@ sh scripts/ImageNet-Mix.sh
 
 
 ## Results
-The following results were obtained with a single NVIDIA 4090 GPU:
-
 ![Results](figs/results.png)
 
 ## Citation
