@@ -17,7 +17,8 @@ class IntervalActivation(nn.Module):
         lower_percentile (float): Lower percentile for min bound computation.
         upper_percentile (float): Upper percentile for max bound computation.
         use_non_linear_transform (bool): Whether to apply Leaky ReLU activation.
-        test_act_buffer (List[torch.Tensor]): Stores activations for percentile computation in eval mode.
+        act_buffer (List[torch.Tensor]): Activations of the current task's training data for percentile computation.
+        collect (bool): Whether eval-mode forward passes store their activations in act_buffer.
         min (Optional[torch.Tensor]): Lower bound per neuron (updated via reset_range).
         max (Optional[torch.Tensor]): Upper bound per neuron (updated via reset_range).
         curr_task_last_batch (Optional[torch.Tensor]): Stores last batch activations during training.
@@ -52,23 +53,24 @@ class IntervalActivation(nn.Module):
         self.max = None
 
         self.curr_task_last_batch = None
-        self.test_act_buffer = []
+        self.act_buffer = []
+        self.collect = False
 
     def reset_range(self) -> None:
         """
         Updates the [min, max] hypercube for each neuron using stored activations.
 
         Steps:
-            1. Concatenate stored activations in test_act_buffer.
+            1. Concatenate the current task's activations stored in act_buffer.
             2. Sort activations and select lower and upper percentiles.
             3. Update self.min and self.max by element-wise min/max.
-            4. Clear the test_act_buffer.
+            4. Clear the act_buffer.
         """
 
-        if len(self.test_act_buffer) == 0:
+        if len(self.act_buffer) == 0:
             return
 
-        activations = torch.cat(self.test_act_buffer, dim=0)
+        activations = torch.cat(self.act_buffer, dim=0)
         sorted_buf, _ = torch.sort(activations, dim=0)
 
         n = sorted_buf.size(0)
@@ -88,7 +90,7 @@ class IntervalActivation(nn.Module):
             self.min = torch.minimum(self.min, min_vals)
             self.max = torch.maximum(self.max, max_vals)
 
-        self.test_act_buffer = []
+        self.act_buffer = []
 
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -98,8 +100,8 @@ class IntervalActivation(nn.Module):
         During training:
             - Stores batch activations in curr_task_last_batch.
 
-        During evaluation:
-            - Stores activations in test_act_buffer for later percentile computation.
+        During evaluation with collect=True (the current task's training data):
+            - Stores activations in act_buffer for later percentile computation.
 
         Args:
             x (torch.Tensor): Input tensor of shape (batch, ...).
@@ -114,7 +116,7 @@ class IntervalActivation(nn.Module):
 
         if self.training:
             self.curr_task_last_batch = out
-        else:
-            self.test_act_buffer.append(out.detach().cpu().view(out.size(0), -1))
+        elif self.collect:
+            self.act_buffer.append(out.detach().cpu().view(out.size(0), -1))
 
         return out

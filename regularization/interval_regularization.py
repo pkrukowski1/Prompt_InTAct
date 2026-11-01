@@ -71,10 +71,10 @@ class IntervalPenalization(nn.Module):
     # ---- helpers (metrics) ----
 
     def _get_task_bounds(self, layer: IntervalActivation):
-        """Compute per-task (min, max) from test_act_buffer, always on CPU."""
-        if len(layer.test_act_buffer) == 0:
+        """Compute per-task (min, max) from act_buffer, always on CPU."""
+        if len(layer.act_buffer) == 0:
             return None, None
-        activations = torch.cat(layer.test_act_buffer, dim=0)
+        activations = torch.cat(layer.act_buffer, dim=0)
         n = activations.size(0)
         if n == 0:
             return None, None

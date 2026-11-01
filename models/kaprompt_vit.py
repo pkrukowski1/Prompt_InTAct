@@ -629,7 +629,7 @@ class KAPROMPTVIT(ContinualModel):
                         old_features = self.old_model.fc_norm(old_z_clf).detach()
                     for m in self.old_model.head.modules():
                         if isinstance(m, IntervalActivation):
-                            m.test_act_buffer = []
+                            m.act_buffer = []
                 loss = self.interval_penalization.forward(inputs, loss, old_features=old_features)
 
             self.opt.zero_grad()
@@ -811,6 +811,26 @@ class KAPROMPTVIT(ContinualModel):
         for i in self.general_prompt:
             i.requires_grad = False
     
+    def collect_interval_activations(self, loader):
+        layers = [m for m in self.head.modules() if isinstance(m, IntervalActivation)]
+        if not layers:
+            return
+        status = self.net.training
+        self.net.eval()
+        n_selected, selected_sum = len(self.prompt_selected_test), self.prompt_selected_sum_test.copy()
+        for m in layers:
+            m.act_buffer, m.collect = [], True
+        try:
+            with torch.no_grad():
+                for data in loader:
+                    self.forward_model(data[0].to(self.device))
+        finally:
+            for m in layers:
+                m.collect = False
+            del self.prompt_selected_test[n_selected:]
+            self.prompt_selected_sum_test = selected_sum
+            self.net.train(status)
+
     def log_coverage_table(self, dataset, args):
         """For each past task j, collect activations using current model state and
         print what fraction falls inside the cumulative hypercube."""
@@ -871,8 +891,8 @@ class KAPROMPTVIT(ContinualModel):
             for m in self.head.modules():
                 if isinstance(m, IntervalActivation):
                     pending = None
-                    if m.test_act_buffer:   # the percentiles reset_range() takes from these activations at the next task
-                        acts, _ = torch.sort(torch.cat(m.test_act_buffer, dim=0), dim=0)
+                    if m.act_buffer:   # the percentiles reset_range() takes from these activations at the next task
+                        acts, _ = torch.sort(torch.cat(m.act_buffer, dim=0), dim=0)
                         n = acts.size(0)
                         lo = int(np.clip(int(n * m.lower_percentile), 0, n - 1))
                         hi = int(np.clip(int(n * m.upper_percentile), 0, n - 1))
@@ -911,7 +931,7 @@ class KAPROMPTVIT(ContinualModel):
             acts = [m for m in self.head.modules() if isinstance(m, IntervalActivation)]
             for m, s in zip(acts, state['intact']['layers']):
                 m.min, m.max = s['min'], s['max']
-                m.test_act_buffer = [] if s['pending'] is None else [s['pending'][0][None], s['pending'][1][None]]
+                m.act_buffer = [] if s['pending'] is None else [s['pending'][0][None], s['pending'][1][None]]
             self.interval_penalization._task_box_history = state['intact']['task_box_history']
             self.interval_penalization.cumulative_box_history = state['intact']['cumulative_box_history']
         rng = state['rng']

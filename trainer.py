@@ -26,7 +26,7 @@ def mask_classes(outputs: torch.Tensor, dataset: ContinualDataset, k: int) -> No
 
 
 def evaluate_cprompt(model: ContinualModel, dataset: ContinualDataset, 
-                        args: Namespace, t, last=False) -> Tuple[list, list]:
+                        args: Namespace, t, last=False, collect_loader=None) -> Tuple[list, list]:
     status = model.net.training
     model.net.eval()
     accs, accs_mask_classes = [], []
@@ -37,6 +37,9 @@ def evaluate_cprompt(model: ContinualModel, dataset: ContinualDataset,
             pass
         else:
             model.ema_before_eval(t)
+
+    if collect_loader is not None:
+        model.collect_interval_activations(collect_loader)
 
     if args.dataset == "domain-net":
         test_loaders = dataset.get_test_dataloaders(t)
@@ -301,7 +304,10 @@ def train_cprompt(model: ContinualModel, dataset: ContinualDataset,
             
         torch.cuda.empty_cache()
 
-        accs = evaluate_cprompt(model, dataset, args, t)
+        collect_loader = None
+        if getattr(model, 'interval_penalization', None) is not None:
+            collect_loader = dataset.get_data_loaders(task_id=t, eval=True)
+        accs = evaluate_cprompt(model, dataset, args, t, collect_loader=collect_loader)
         results.append(accs[0])
         results_mask_classes.append(accs[1])
         
