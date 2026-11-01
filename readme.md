@@ -19,7 +19,7 @@
     <br>
     <sup>4</sup>Jagiellonian University, Kraków, Poland
     <br>
-    <sup>5</sup>Centre for Credible AI
+    <sup>5</sup>Centre for Credible AI, Warsaw University of Technology
     <br><br>
     <sup>*</sup>Corresponding author: patryk.krukowski@doctoral.uj.edu.pl
   </div>
@@ -28,11 +28,11 @@
 </div>
 </div>
 <p align="center">
-  <a href='https://arxiv.org/abs/2505.04575'><img src='https://img.shields.io/badge/Arxiv-2505.04575-A42C25.svg?logo=arXiv'></a>
-  <a href='[https://arxiv.org/abs/2505.04575](https://github.com/zhoujiahuan1991/ICML2025-KA-Prompt)'><img src="https://hitscounter.dev/api/hit?url=https%3A%2F%2Fgithub.com%2Fzhoujiahuan1991%2FICML2025-KA-Prompt&label=KA-Prompt&icon=github&color=%233d8bfd"></a>
+  <a href='https://arxiv.org/abs/2511.17439'><img src='https://img.shields.io/badge/Arxiv-2505.04575-A42C25.svg?logo=arXiv'></a>
+  <a href='[https://arxiv.org/abs/2511.17439](https://github.com/pkrukowski1/Prompt_InTAct)'><img src="https://hitscounter.dev/api/hit?url=https%3A%2F%2Fgithub.com%2Fzhoujiahuan1991%2FICML2025-KA-Prompt&label=KA-Prompt&icon=github&color=%233d8bfd"></a>
 </p>
 
-The *official* repository for  [Componential Prompt-Knowledge Alignment for Domain Incremental Learning](https://openreview.net/pdf?id=QWCdBzLOsk).
+The *official* repository for  InTAct.
 
 ![Framework](figs/framework.png)
 
